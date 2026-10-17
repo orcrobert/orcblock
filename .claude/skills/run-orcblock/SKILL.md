@@ -4,13 +4,13 @@ description: Exact recipe to run the daemon in dev mode, drive it with the CLI, 
 ---
 
 ## Dev daemon (no root, no system changes)
-1. Start it in the background: `make daemon-dev`. It runs `orcblockd serve --dev --data-dir ./data`: state in `./data/state.json`, socket at `./data/orcblockd.sock`, the DNS sinkhole on 127.0.0.1:53535, and the `DryRunEnforcer`, which logs `would apply: [...]` instead of touching /etc/resolver or pf.
+1. Start it in the background: `make daemon-dev`. It runs `orcblockd serve --dev --data-dir ./data`: state in `./data/state.json`, socket at `./data/orcblockd.sock`, the DNS sinkhole on 127.0.0.1:53536 (the installed helper owns 53535), and the `DryRunEnforcer`, which logs `would apply: [...]` instead of touching /etc/resolver or pf.
 2. Wait until ready: `cargo run -q -p orcblock-cli -- --socket ./data/orcblockd.sock status` prints the status.
 3. Drive it:
    - `... add https://www.YouTube.com/watch?v=x` (stored as `youtube.com`)
    - `... start 1m`, then `... remove youtube.com` must fail with the orc's message
    - `... potion` ends the block and shows potions left
-   - `dig @127.0.0.1 -p 53535 youtube.com` answers `0.0.0.0` while blocked
+   - `dig @127.0.0.1 -p 53536 youtube.com` answers `0.0.0.0` while blocked
 4. Stop it with Ctrl-C (or stop the background task); it saves state on shutdown. `./data/` is gitignored; move it aside to start fresh.
 
 ## App

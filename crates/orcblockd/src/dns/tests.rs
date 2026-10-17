@@ -88,3 +88,8 @@ async fn answers_over_udp_and_tcp() {
     stop.send(true).expect("running");
     server.await.expect("stops");
 }
+
+#[test]
+fn dev_daemon_listens_apart_from_the_installed_helper() {
+    assert_ne!(DEV_ADDR.port(), DEFAULT_ADDR.port());
+}
