@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { api, isAppError, onStatus, type Status } from "./lib/api";
   import Snackbar from "./lib/components/Snackbar.svelte";
+  import StatusBar from "./lib/components/StatusBar.svelte";
   import TopBar from "./lib/components/TopBar.svelte";
   import Home from "./routes/Home.svelte";
   import Setup from "./routes/Setup.svelte";
@@ -33,16 +34,27 @@
   });
 </script>
 
-<TopBar dryRun={view.kind === "ready" && view.status.mode === "dry_run"} />
+<TopBar version={__APP_VERSION__} />
 
-{#if view.kind === "ready"}
-  <Home
-    status={view.status}
-    onstatus={(status) => (view = { kind: "ready", status })}
-    onerror={(text) => (message = text)}
-  />
-{:else if view.kind === "setup"}
-  <Setup onerror={(text) => (message = text)} />
-{/if}
+<main>
+  {#if view.kind === "ready"}
+    <Home
+      status={view.status}
+      onstatus={(status) => (view = { kind: "ready", status })}
+      onerror={(text) => (message = text)}
+    />
+  {:else if view.kind === "setup"}
+    <Setup onerror={(text) => (message = text)} />
+  {:else}
+    <StatusBar armed={false} label="CONNECTING" />
+  {/if}
+</main>
 
 <Snackbar bind:message />
+
+<style>
+  main {
+    min-height: 0;
+    overflow: hidden;
+  }
+</style>

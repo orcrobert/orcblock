@@ -3,34 +3,31 @@
 
   $effect(() => {
     if (!message) return;
-    const timer = setTimeout(() => (message = ""), 4000);
+    const timer = setTimeout(() => (message = ""), 5000);
     return () => clearTimeout(timer);
   });
 </script>
 
 <div class="region" role="status" aria-live="polite">
   {#if message}
-    <div class="snackbar">{message}</div>
+    <p class="micro"><strong>ERR //</strong> {message}</p>
   {/if}
 </div>
 
 <style>
   .region {
     position: fixed;
-    left: var(--space-4);
-    right: var(--space-4);
-    bottom: var(--space-4);
-    display: flex;
-    justify-content: center;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
     pointer-events: none;
   }
-  .snackbar {
-    max-width: 480px;
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--md-sys-shape-corner-extra-small);
-    background: var(--md-sys-color-inverse-surface);
-    color: var(--md-sys-color-inverse-on-surface);
-    font: var(--md-sys-typescale-body-medium);
-    box-shadow: var(--md-sys-elevation-3);
+  p {
+    margin: 0;
+    padding: 10px var(--gutter);
+    border-top: var(--rule-thick) solid var(--ink);
+    background: var(--red);
+    color: var(--on-red);
   }
 </style>

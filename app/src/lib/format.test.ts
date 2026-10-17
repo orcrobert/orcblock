@@ -5,10 +5,13 @@ import {
   formatCountdown,
   formatMinutes,
   DURATION_STOPS,
-  durationParts,
   formatEnds,
-  initial,
-  potionsSummary,
+  formatHoursMinutes,
+  formatIsoDay,
+  pad2,
+  parseDuration,
+  presetLabel,
+  stepDuration,
 } from "./format";
 
 describe("formatCountdown", () => {
@@ -48,18 +51,40 @@ describe("DURATION_STOPS", () => {
   });
 });
 
-describe("durationParts", () => {
+describe("stepDuration", () => {
   it.each([
-    [25, [{ value: 25, unit: "min" }]],
-    [
-      90,
-      [
-        { value: 1, unit: "h" },
-        { value: 30, unit: "min" },
-      ],
-    ],
-    [2880, [{ value: 2, unit: "d" }]],
-  ])("%j", (minutes, want) => expect(durationParts(minutes)).toEqual(want));
+    [60, 1, 75],
+    [60, -1, 45],
+    [61, -1, 60],
+    [15, -1, 15],
+    [10080, 1, 10080],
+    [5, 1, 15],
+  ] as const)("%i stepped %i is %i", (minutes, direction, want) =>
+    expect(stepDuration(minutes, direction)).toBe(want),
+  );
+});
+
+describe("formatHoursMinutes", () => {
+  it.each([
+    [25, "0:25"],
+    [90, "1:30"],
+    [10080, "168:00"],
+  ])("%i is %s", (minutes, want) => expect(formatHoursMinutes(minutes)).toBe(want));
+});
+
+describe("presetLabel", () => {
+  it.each([
+    [25, "25M"],
+    [120, "2H"],
+    [1440, "1D"],
+  ])("%i is %s", (minutes, want) => expect(presetLabel(minutes)).toBe(want));
+});
+
+describe("pad2 and formatIsoDay", () => {
+  it("pads and uses the local day", () => {
+    expect(pad2(7)).toBe("07");
+    expect(formatIsoDay(new Date(2026, 9, 7, 23, 30).toISOString())).toBe("2026-10-07");
+  });
 });
 
 describe("formatEnds", () => {
@@ -75,13 +100,30 @@ describe("formatEnds", () => {
   });
 });
 
-describe("initial", () => {
-  it("uses the Unicode form", () => expect(initial("bücher.de")).toBe("B"));
-});
+describe("parseDuration", () => {
+  it.each([
+    ["clock", "1:30", 90],
+    ["clock with spaces", " 2:05 ", 125],
+    ["clock past a day", "36:00", 2160],
+    ["bare number is minutes", "45", 45],
+    ["minutes suffix", "90m", 90],
+    ["hours suffix", "2h", 120],
+    ["hours and minutes", "1h30", 90],
+    ["hours and minutes with suffixes", "1H 30M", 90],
+    ["days", "1d", 1440],
+    ["days and hours", "2d 4h", 3120],
+    ["shortest", "1", 1],
+    ["longest", "7d", 10080],
+  ])("%s: %s is %i minutes", (_name, text, want) => expect(parseDuration(text)).toBe(want));
 
-describe("potionsSummary", () => {
-  it("counts down to none", () => {
-    expect(potionsSummary(3, 5)).toBe("3 of 5 left");
-    expect(potionsSummary(0, 5)).toBe("None left this month");
-  });
+  it.each([
+    ["empty", ""],
+    ["zero", "0:00"],
+    ["over seven days", "7d 1m"],
+    ["minutes over 59 on a clock", "1:75"],
+    ["letters", "soon"],
+    ["negative", "-5"],
+    ["fraction", "1.5h"],
+    ["duplicate unit", "1h 2h"],
+  ])("%s: %s is rejected", (_name, text) => expect(parseDuration(text)).toBeUndefined());
 });

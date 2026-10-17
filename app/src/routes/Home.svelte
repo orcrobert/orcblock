@@ -4,12 +4,11 @@
   import Countdown from "../lib/components/Countdown.svelte";
   import Dialog from "../lib/components/Dialog.svelte";
   import DurationPicker from "../lib/components/DurationPicker.svelte";
-  import IconButton from "../lib/components/IconButton.svelte";
+  import OrcBox from "../lib/components/OrcBox.svelte";
   import PotionShelf from "../lib/components/PotionShelf.svelte";
   import SiteRow from "../lib/components/SiteRow.svelte";
-  import TextField from "../lib/components/TextField.svelte";
-  import { DEFAULT_MINUTES } from "../lib/format";
-  import Orc from "../lib/mascot/Orc.svelte";
+  import StatusBar from "../lib/components/StatusBar.svelte";
+  import { DEFAULT_MINUTES, pad2 } from "../lib/format";
 
   let {
     status,
@@ -25,6 +24,7 @@
   let siteError = $state("");
   let minutes = $state(DEFAULT_MINUTES);
   let confirming = $state(false);
+  let orcBox: OrcBox | undefined = $state();
   let busy = $state(false);
 
   const block = $derived(status.block);
@@ -60,16 +60,17 @@
   }
 
   async function drink() {
-    if (await run(api.drinkPotion)) confirming = false;
+    const used = status.potions.available - 1;
+    if (await run(api.drinkPotion)) {
+      confirming = false;
+      orcBox?.drink(used);
+    }
   }
 </script>
 
-<main>
-  <section class="panel" aria-label={block ? "Block in progress" : "New block"}>
-    <p class="state" class:active={block}>
-      <Orc state={block ? "guarding" : "sleeping"} size={20} />
-      {block ? "Guarding" : "Idle"}
-    </p>
+<div class="screen">
+  <section class="control" aria-label={block ? "Block in progress" : "New block"}>
+    <StatusBar armed={block !== null} label={block ? "ARMED" : "IDLE"} mode={status.mode} />
     {#if block}
       <Countdown
         remaining={block.remaining_secs}
@@ -79,133 +80,204 @@
       />
     {:else}
       <DurationPicker bind:minutes />
-      <div class="start">
-        <Button wide disabled={busy || empty} onclick={() => run(() => api.startBlock(minutes))}>
-          Start blocking
-        </Button>
-        {#if empty}<p class="hint">Add a site below to start.</p>{/if}
-      </div>
     {/if}
-  </section>
-
-  <section aria-labelledby="sites-title">
-    <h2 id="sites-title">
-      Sites{#if !empty}<span class="count">{status.sites.length}</span>{/if}
-    </h2>
-    <form onsubmit={addSite}>
-      <TextField
-        label="Add a site"
-        bind:value={site}
-        error={siteError}
-        supporting={block
-          ? "New sites are blocked straight away"
-          : "Paste a link or type a name, like youtube.com"}
-        inputmode="url"
-        oninput={() => (siteError = "")}
-      >
-        {#snippet trailing()}
-          <IconButton icon="add" label="Add site" type="submit" disabled={site.trim() === ""} />
-        {/snippet}
-      </TextField>
-    </form>
-    {#if !empty}
-      <ul>
-        {#each status.sites as entry (entry.domain)}
-          <SiteRow site={entry} locked={block !== null} onremove={removeSite} />
-        {/each}
-      </ul>
-    {/if}
-  </section>
-
-  {#if block}
-    <section aria-labelledby="potions-title">
-      <h2 id="potions-title">Sleep potions</h2>
-      <div class="potions">
+    <OrcBox bind:this={orcBox} potions={status.potions} guarding={block !== null} />
+    <footer class="action" class:split={block}>
+      {#if block}
         <PotionShelf potions={status.potions} />
         <Button
-          wide
-          variant="tonal"
+          variant="alert"
           disabled={busy || status.potions.available === 0}
           onclick={() => (confirming = true)}
         >
-          End early with a potion
+          <span>DRINK</span><span>&gt;&gt;&gt;</span>
         </Button>
-      </div>
-    </section>
-  {/if}
-</main>
+      {:else}
+        <Button disabled={busy || empty} onclick={() => run(() => api.startBlock(minutes))}>
+          <span>ARM // START BLOCK</span><span>&gt;&gt;&gt;</span>
+        </Button>
+      {/if}
+    </footer>
+  </section>
 
-<Dialog
-  bind:open={confirming}
-  title="Use 1 of {status.potions.available} potions to end this block now?"
->
-  The sites open again straight away. Potions refill on the first of each month.
+  <section class="targets" aria-labelledby="targets-title">
+    <header class="micro">
+      <h2 id="targets-title">[ TARGETS ]</h2>
+      <span class="muted">{pad2(status.sites.length)}</span>
+    </header>
+
+    <form class="prompt" onsubmit={addSite}>
+      <label for="site" class="micro">&gt;</label>
+      <input
+        id="site"
+        bind:value={site}
+        placeholder="YOUTUBE.COM"
+        inputmode="url"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        aria-invalid={siteError ? "true" : undefined}
+        aria-describedby="site-help"
+        oninput={() => (siteError = "")}
+      />
+      <button type="submit" class="micro" disabled={site.trim() === ""}>ADD +</button>
+    </form>
+    <p
+      id="site-help"
+      class="help micro"
+      class:error={siteError}
+      role={siteError ? "alert" : undefined}
+    >
+      {siteError || (block ? "NEW TARGETS ARE BLOCKED AT ONCE" : "PASTE A LINK OR TYPE A NAME")}
+    </p>
+
+    <div class="list">
+      {#if empty}
+        <p class="none micro muted">NO TARGETS // ADD A SITE ABOVE</p>
+      {:else}
+        <ul>
+          {#each status.sites as entry, i (entry.domain)}
+            <SiteRow site={entry} index={i + 1} locked={block !== null} onremove={removeSite} />
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  </section>
+</div>
+
+<Dialog bind:open={confirming} tag="CONFIRM // SLEEP POTION" title="End block now?">
+  USES 1 OF {status.potions.available} POTIONS. TARGETS UNLOCK AT ONCE. REFILL {status.potions
+    .refill_on}.
   {#snippet actions()}
-    <Button variant="text" onclick={() => (confirming = false)}>Keep blocking</Button>
-    <Button variant="text" disabled={busy} onclick={drink}>End block</Button>
+    <Button variant="plain" onclick={() => (confirming = false)}>ABORT</Button>
+    <Button variant="alert" disabled={busy} onclick={drink}>
+      <span>DRINK</span><span>&gt;&gt;&gt;</span>
+    </Button>
   {/snippet}
 </Dialog>
 
 <style>
-  main {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-5);
-    max-width: 480px;
-    margin: 0 auto;
-    padding: var(--space-2) var(--space-4) var(--space-6);
+  .screen {
+    display: grid;
+    grid-template-columns: clamp(500px, 56%, 600px) 1fr;
+    height: 100%;
+    min-height: 0;
   }
-  .panel {
-    padding: var(--space-5);
-    border-radius: var(--md-sys-shape-corner-extra-large);
-    background: var(--md-sys-color-surface-container-low);
+  /* Left compartment: status, readout and orc, the preset or progress
+     strip, and the one action. The components' parts land in its cells. */
+  .control {
+    display: grid;
+    grid-template-columns: 1fr 176px;
+    grid-template-rows: auto 1fr var(--row) 64px;
+    min-height: 0;
+    border-right: var(--rule-thick) solid var(--rule);
   }
-  .state {
+  .control > :global(:first-child),
+  .control :global(.cells),
+  .control :global(.track),
+  .action {
+    grid-column: 1 / -1;
+  }
+  .control > :global(.orc) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .action {
+    display: grid;
+    border-top: var(--rule-thick) solid var(--rule);
+  }
+  .action.split {
+    grid-template-columns: 1fr 160px;
+  }
+  .action.split > :global(button) {
+    border-left: var(--rule-thin) solid var(--rule);
+  }
+
+  /* Right compartment: the target list, which alone scrolls. */
+  .targets {
+    display: grid;
+    grid-template-rows: 28px 40px auto 1fr;
+    min-height: 0;
+  }
+  .targets header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: var(--space-2);
-    margin: 0 0 var(--space-3);
-    color: var(--md-sys-color-on-surface-variant);
-    font: var(--md-sys-typescale-label-large);
-  }
-  .state.active {
-    color: var(--md-sys-color-primary);
-  }
-  .start {
-    margin-top: var(--space-4);
-  }
-  .hint {
-    margin: var(--space-2) 0 0;
-    color: var(--md-sys-color-on-surface-variant);
-    font: var(--md-sys-typescale-body-small);
-    text-align: center;
+    padding: 0 var(--gutter);
+    border-bottom: var(--rule-thin) solid var(--rule);
   }
   h2 {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin: 0 0 var(--space-3) var(--space-1);
-    color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-title-medium);
+    margin: 0;
+    font: inherit;
   }
-  .count {
-    color: var(--md-sys-color-on-surface-variant);
-    font: var(--md-sys-typescale-label-large);
+  .prompt {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    border-bottom: var(--rule-thin) solid var(--rule);
+  }
+  .prompt label {
+    display: grid;
+    place-items: center;
+    border-right: var(--rule-thin) solid var(--rule);
+    font-weight: 700;
+  }
+  input {
+    min-width: 0;
+    padding: 0 var(--gutter);
+    border: none;
+    background: transparent;
+    font: var(--type-data);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    caret-color: var(--red);
+    -webkit-user-select: text;
+    user-select: text;
+    outline: none;
+  }
+  input::placeholder {
+    color: var(--ink-muted);
+    opacity: 0.6;
+  }
+  .prompt:focus-within {
+    box-shadow: inset 0 -2px 0 var(--red);
+  }
+  .prompt button {
+    padding: 0 var(--gutter);
+    border: none;
+    border-left: var(--rule-thin) solid var(--rule);
+    background: var(--ink);
+    color: var(--paper);
+    cursor: pointer;
+  }
+  .prompt button:disabled {
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: default;
+  }
+  .help {
+    margin: 0;
+    padding: 6px var(--gutter);
+    border-bottom: var(--rule-thin) solid var(--rule);
+    color: var(--ink-muted);
+  }
+  .help.error {
+    color: var(--red);
+  }
+  .list {
+    min-height: 0;
+    overflow: hidden auto;
+    overscroll-behavior: none;
   }
   ul {
-    margin: var(--space-2) 0 0;
+    margin: 0;
     padding: 0;
-    overflow: hidden;
     list-style: none;
-    border-radius: var(--md-sys-shape-corner-large);
-    background: var(--md-sys-color-surface-container-low);
   }
-  .potions {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-4);
-    border-radius: var(--md-sys-shape-corner-large);
-    background: var(--md-sys-color-surface-container-low);
+  .none {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    margin: 0;
+    background: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 8px);
   }
 </style>
