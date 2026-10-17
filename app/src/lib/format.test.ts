@@ -4,9 +4,11 @@ import {
   describeRemaining,
   formatCountdown,
   formatMinutes,
-  monogram,
-  parseMinutes,
-  potionsLabel,
+  DURATION_STOPS,
+  durationParts,
+  formatEnds,
+  initial,
+  potionsSummary,
 } from "./format";
 
 describe("formatCountdown", () => {
@@ -38,35 +40,48 @@ describe("describeRemaining", () => {
   });
 });
 
-describe("parseMinutes", () => {
-  it.each([
-    ["90", 90],
-    ["25m", 25],
-    ["25 min", 25],
-    ["2h", 120],
-    ["1h30m", 90],
-    ["1d", 1440],
-    ["", null],
-    ["h", null],
-    ["1.5h", null],
-    ["soon", null],
-  ])("%j is %j", (input, want) => expect(parseMinutes(input)).toBe(want));
-});
-
-describe("monogram", () => {
-  it("uses the display letter and a stable hue", () => {
-    const a = monogram("xn--bcher-kva.de", "bücher.de");
-    expect(a.letter).toBe("B");
-    expect(monogram("xn--bcher-kva.de", "bücher.de")).toEqual(a);
-    expect(a.hue).toBeGreaterThanOrEqual(0);
-    expect(a.hue).toBeLessThan(360);
+describe("DURATION_STOPS", () => {
+  it("rises from 15 minutes to 7 days", () => {
+    expect(DURATION_STOPS[0]).toBe(15);
+    expect(DURATION_STOPS.at(-1)).toBe(7 * 24 * 60);
+    expect(DURATION_STOPS.every((m, i) => i === 0 || m > DURATION_STOPS[i - 1]!)).toBe(true);
   });
 });
 
-describe("potionsLabel", () => {
-  it("pluralises", () => {
-    expect(potionsLabel(0)).toBe("No sleep potions left this month");
-    expect(potionsLabel(1)).toBe("1 sleep potion left this month");
-    expect(potionsLabel(5)).toBe("5 sleep potions left this month");
+describe("durationParts", () => {
+  it.each([
+    [25, [{ value: 25, unit: "min" }]],
+    [
+      90,
+      [
+        { value: 1, unit: "h" },
+        { value: 30, unit: "min" },
+      ],
+    ],
+    [2880, [{ value: 2, unit: "d" }]],
+  ])("%j", (minutes, want) => expect(durationParts(minutes)).toEqual(want));
+});
+
+describe("formatEnds", () => {
+  const now = new Date(2026, 9, 17, 10, 0);
+  const time = (d: Date) => d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  it("shows only the time today", () => {
+    expect(formatEnds(now, 90)).toBe(time(new Date(2026, 9, 17, 11, 30)));
+  });
+  it("adds the weekday on another day", () => {
+    const ends = formatEnds(now, 1440);
+    expect(ends.endsWith(time(now))).toBe(true);
+    expect(ends.length).toBeGreaterThan(time(now).length);
+  });
+});
+
+describe("initial", () => {
+  it("uses the Unicode form", () => expect(initial("bücher.de")).toBe("B"));
+});
+
+describe("potionsSummary", () => {
+  it("counts down to none", () => {
+    expect(potionsSummary(3, 5)).toBe("3 of 5 left");
+    expect(potionsSummary(0, 5)).toBe("None left this month");
   });
 });

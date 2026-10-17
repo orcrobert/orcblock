@@ -7,6 +7,7 @@
     icon,
     type = "button",
     disabled = false,
+    wide = false,
     onclick,
     children,
   }: {
@@ -14,12 +15,14 @@
     icon?: IconName;
     type?: "button" | "submit";
     disabled?: boolean;
+    /** Fills the width of its container. */
+    wide?: boolean;
     onclick?: (event: MouseEvent) => void;
     children: Snippet;
   } = $props();
 </script>
 
-<button class={variant} class:has-icon={icon} {type} {disabled} {onclick}>
+<button class={variant} class:has-icon={icon} class:wide {type} {disabled} {onclick}>
   {#if icon}<Icon name={icon} size={18} />{/if}
   {@render children()}
 </button>
@@ -40,6 +43,10 @@
     overflow: hidden;
     isolation: isolate;
     transition: box-shadow var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+  }
+  button.wide {
+    width: 100%;
+    height: 48px;
   }
   button.has-icon {
     padding-left: var(--space-4);

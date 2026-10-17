@@ -5,6 +5,7 @@
     icon,
     label,
     title,
+    type = "button",
     disabled = false,
     pressed,
     onclick,
@@ -13,6 +14,7 @@
     /** Accessible name; required because the button shows no text. */
     label: string;
     title?: string;
+    type?: "button" | "submit";
     disabled?: boolean;
     pressed?: boolean;
     onclick?: (event: MouseEvent) => void;
@@ -20,7 +22,7 @@
 </script>
 
 <button
-  type="button"
+  {type}
   aria-label={label}
   aria-haspopup={pressed === undefined ? undefined : "menu"}
   aria-expanded={pressed}

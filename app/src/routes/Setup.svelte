@@ -20,33 +20,49 @@
 </script>
 
 <main>
-  <Orc state="sleeping" size={180} />
-  <h2>The orc needs a post</h2>
-  <p>
-    OrcBlock installs a small helper that keeps blocks in place even when this window is closed.
-    macOS will ask for your password once.
-  </p>
-  <Button icon="shield" disabled={installing} onclick={install}>
-    {installing ? "Installing…" : "Install the helper"}
-  </Button>
+  <section class="panel">
+    <span class="mark"><Orc state="sleeping" size={32} /></span>
+    <h2>Install the helper</h2>
+    <p>
+      A small background helper keeps blocks running when this window is closed, after a restart,
+      and until the timer ends. macOS asks for your password once.
+    </p>
+    <Button wide icon="shield" disabled={installing} onclick={install}>
+      {installing ? "Installing…" : "Install helper"}
+    </Button>
+  </section>
 </main>
 
 <style>
   main {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: var(--space-2) var(--space-4) var(--space-6);
+  }
+  .panel {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-6) var(--space-5);
-    text-align: center;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    background: var(--md-sys-color-surface-container-low);
+  }
+  .mark {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
   }
   h2 {
-    margin: 0;
+    margin: var(--space-2) 0 0;
     font: var(--md-sys-typescale-headline-small);
   }
   p {
-    max-width: 320px;
-    margin: 0 0 var(--space-2);
+    margin: 0 0 var(--space-3);
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-body-medium);
   }

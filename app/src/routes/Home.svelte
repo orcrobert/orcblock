@@ -1,14 +1,14 @@
 <script lang="ts">
   import { api, errorMessage, type Site, type Status } from "../lib/api";
   import Button from "../lib/components/Button.svelte";
-  import Card from "../lib/components/Card.svelte";
-  import Chip from "../lib/components/Chip.svelte";
   import Countdown from "../lib/components/Countdown.svelte";
   import Dialog from "../lib/components/Dialog.svelte";
+  import DurationPicker from "../lib/components/DurationPicker.svelte";
+  import IconButton from "../lib/components/IconButton.svelte";
   import PotionShelf from "../lib/components/PotionShelf.svelte";
   import SiteRow from "../lib/components/SiteRow.svelte";
   import TextField from "../lib/components/TextField.svelte";
-  import { MAX_MINUTES, MIN_MINUTES, formatMinutes, parseMinutes } from "../lib/format";
+  import { DEFAULT_MINUTES } from "../lib/format";
   import Orc from "../lib/mascot/Orc.svelte";
 
   let {
@@ -21,25 +21,14 @@
     onerror: (message: string) => void;
   } = $props();
 
-  const PRESETS = [25, 60, 120, 240];
-
   let site = $state("");
   let siteError = $state("");
-  let preset = $state<number | "custom">(60);
-  let custom = $state("");
+  let minutes = $state(DEFAULT_MINUTES);
   let confirming = $state(false);
   let busy = $state(false);
 
   const block = $derived(status.block);
-  const customMinutes = $derived(parseMinutes(custom));
-  const customError = $derived.by(() => {
-    if (preset !== "custom" || custom.trim() === "") return "";
-    if (customMinutes === null) return "Try 45, 90m or 1h30m";
-    if (customMinutes < MIN_MINUTES) return "A block lasts at least one minute";
-    if (customMinutes > MAX_MINUTES) return "A block lasts at most seven days";
-    return "";
-  });
-  const minutes = $derived(preset === "custom" ? (customError ? null : customMinutes) : preset);
+  const empty = $derived(status.sites.length === 0);
 
   async function run(action: () => Promise<Status>): Promise<boolean> {
     busy = true;
@@ -70,97 +59,79 @@
     void run(() => api.removeSite(entry.domain));
   }
 
-  function start() {
-    if (minutes !== null) void run(() => api.startBlock(minutes));
-  }
-
   async function drink() {
     if (await run(api.drinkPotion)) confirming = false;
   }
 </script>
 
 <main>
-  <div class="hero">
-    <Orc state={block ? "guarding" : "sleeping"} size={168} />
-    <h2>{block ? "None shall pass" : "The path is open"}</h2>
+  <section class="panel" aria-label={block ? "Block in progress" : "New block"}>
+    <p class="state" class:active={block}>
+      <Orc state={block ? "guarding" : "sleeping"} size={20} />
+      {block ? "Guarding" : "Idle"}
+    </p>
     {#if block}
       <Countdown
         remaining={block.remaining_secs}
         duration={block.duration_secs}
         endsAt={block.ends_at}
+        sites={block.domains.length}
       />
     {:else}
-      <p class="lede">Add the sites that steal your time, then set the orc on guard.</p>
+      <DurationPicker bind:minutes />
+      <div class="start">
+        <Button wide disabled={busy || empty} onclick={() => run(() => api.startBlock(minutes))}>
+          Start blocking
+        </Button>
+        {#if empty}<p class="hint">Add a site below to start.</p>{/if}
+      </div>
     {/if}
-  </div>
+  </section>
 
-  <Card title="Sites">
+  <section aria-labelledby="sites-title">
+    <h2 id="sites-title">
+      Sites{#if !empty}<span class="count">{status.sites.length}</span>{/if}
+    </h2>
     <form onsubmit={addSite}>
       <TextField
         label="Add a site"
         bind:value={site}
         error={siteError}
-        supporting={block ? "New sites join the running block" : "Paste a link or type a name"}
+        supporting={block
+          ? "New sites are blocked straight away"
+          : "Paste a link or type a name, like youtube.com"}
         inputmode="url"
         oninput={() => (siteError = "")}
-      />
-      <Button type="submit" variant="tonal" icon="add" disabled={site.trim() === ""}>Add</Button>
+      >
+        {#snippet trailing()}
+          <IconButton icon="add" label="Add site" type="submit" disabled={site.trim() === ""} />
+        {/snippet}
+      </TextField>
     </form>
-    {#if status.sites.length > 0}
+    {#if !empty}
       <ul>
         {#each status.sites as entry (entry.domain)}
           <SiteRow site={entry} locked={block !== null} onremove={removeSite} />
         {/each}
       </ul>
-    {:else}
-      <p class="empty">No sites yet.</p>
     {/if}
-  </Card>
+  </section>
 
   {#if block}
-    <Card title="Sleep potions">
-      <PotionShelf potions={status.potions} />
-      <div class="action">
+    <section aria-labelledby="potions-title">
+      <h2 id="potions-title">Sleep potions</h2>
+      <div class="potions">
+        <PotionShelf potions={status.potions} />
         <Button
+          wide
           variant="tonal"
-          icon="flask"
           disabled={busy || status.potions.available === 0}
           onclick={() => (confirming = true)}
         >
-          Drink a sleep potion
+          End early with a potion
         </Button>
       </div>
-    </Card>
-  {:else}
-    <Card title="Duration">
-      <div class="chips" role="group" aria-label="Duration">
-        {#each PRESETS as value (value)}
-          <Chip selected={preset === value} onclick={() => (preset = value)}
-            >{formatMinutes(value)}</Chip
-          >
-        {/each}
-        <Chip selected={preset === "custom"} onclick={() => (preset = "custom")}>Custom</Chip>
-      </div>
-      {#if preset === "custom"}
-        <div class="custom">
-          <TextField
-            label="Minutes"
-            bind:value={custom}
-            error={customError}
-            supporting={customMinutes ? formatMinutes(customMinutes) : "Like 45, 90m or 1h30m"}
-          />
-        </div>
-      {/if}
-      <div class="action">
-        <Button
-          icon="shield"
-          disabled={busy || minutes === null || status.sites.length === 0}
-          onclick={start}
-        >
-          Start blocking
-        </Button>
-      </div>
-    </Card>
+    </section>
   {/if}
 </main>
 
@@ -168,10 +139,10 @@
   bind:open={confirming}
   title="Use 1 of {status.potions.available} potions to end this block now?"
 >
-  The orc falls asleep and the sites open again straight away.
+  The sites open again straight away. Potions refill on the first of each month.
   {#snippet actions()}
     <Button variant="text" onclick={() => (confirming = false)}>Keep blocking</Button>
-    <Button variant="text" disabled={busy} onclick={drink}>Drink</Button>
+    <Button variant="text" disabled={busy} onclick={drink}>End block</Button>
   {/snippet}
 </Dialog>
 
@@ -179,59 +150,62 @@
   main {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-5);
     max-width: 480px;
     margin: 0 auto;
-    padding: 0 var(--space-4) var(--space-6);
+    padding: var(--space-2) var(--space-4) var(--space-6);
   }
-  .hero {
+  .panel {
+    padding: var(--space-5);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    background: var(--md-sys-color-surface-container-low);
+  }
+  .state {
     display: flex;
-    flex-direction: column;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) 0 var(--space-3);
+    margin: 0 0 var(--space-3);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-large);
+  }
+  .state.active {
+    color: var(--md-sys-color-primary);
+  }
+  .start {
+    margin-top: var(--space-4);
+  }
+  .hint {
+    margin: var(--space-2) 0 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
     text-align: center;
   }
   h2 {
-    margin: 0;
-    font: var(--md-sys-typescale-headline-small);
-  }
-  .lede,
-  .empty {
-    margin: 0;
-    color: var(--md-sys-color-on-surface-variant);
-    font: var(--md-sys-typescale-body-medium);
-  }
-  .empty {
-    padding: var(--space-3) var(--space-1) 0;
-  }
-  form {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--space-2);
+    margin: 0 0 var(--space-3) var(--space-1);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
   }
-  form :global(.field) {
-    flex: 1;
-  }
-  form :global(button) {
-    margin-top: var(--space-2);
+  .count {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-large);
   }
   ul {
     margin: var(--space-2) 0 0;
     padding: 0;
+    overflow: hidden;
     list-style: none;
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
   }
-  .chips {
+  .potions {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-  .custom {
-    margin-top: var(--space-3);
-  }
-  .action {
-    display: flex;
-    justify-content: center;
-    margin-top: var(--space-4);
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
   }
 </style>

@@ -33,37 +33,44 @@ export function describeRemaining(totalSecs: number): string {
   return `${parts.join(" ")} left`;
 }
 
-/** Durations people type: `90`, `25m`, `2h`, `1h30m`, `1d`. Minutes, or null. */
-export function parseMinutes(input: string): number | null {
-  const text = input.trim().toLowerCase().replace(/\s+/g, "");
-  if (text === "") return null;
-  if (/^\d+$/.test(text)) return Number(text);
-  const match = /^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m(?:in)?)?$/.exec(text);
-  if (!match || match[0] === "") return null;
-  const [, d = "0", h = "0", m = "0"] = match;
-  return Number(d) * 1440 + Number(h) * 60 + Number(m);
+/** The durations the picker steps through, in minutes: fine steps for
+    short blocks, coarse ones for long blocks, 15 minutes to 7 days. */
+export const DURATION_STOPS = [
+  15, 20, 25, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 480, 600, 720, 1440, 2880, 4320,
+  7200, 10080,
+] as const;
+
+export const DEFAULT_MINUTES = 60;
+
+/** `90` as `[{ value: 1, unit: "h" }, { value: 30, unit: "min" }]`, for a
+    readout that sets numbers larger than units. */
+export function durationParts(total: number): { value: number; unit: string }[] {
+  return formatMinutes(total)
+    .split(/ (?=\d)/)
+    .map((part) => {
+      const [value = "0", unit = ""] = part.split(" ");
+      return { value: Number(value), unit };
+    });
 }
 
-/** The shortest and longest block the daemon accepts, in minutes. */
-export const MIN_MINUTES = 1;
-export const MAX_MINUTES = 7 * 24 * 60;
-
-export interface Monogram {
-  letter: string;
-  hue: number;
+/** When a block of `minutes` started at `now` ends: `17:42`, or `Tue 17:42`
+    when that is not today. */
+export function formatEnds(now: Date, minutes: number): string {
+  const end = new Date(now.getTime() + minutes * 60_000);
+  const time = end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  if (end.toDateString() === now.toDateString()) return time;
+  const day = end.toLocaleDateString(undefined, { weekday: "short" });
+  return `${day} ${time}`;
 }
 
-/** The first letter of a site and a stable hue derived from its domain. */
-export function monogram(domain: string, display: string = domain): Monogram {
-  let hash = 0;
-  for (const char of domain) hash = (hash * 31 + char.codePointAt(0)!) >>> 0;
-  const letter = [...display][0]?.toLocaleUpperCase() ?? "?";
-  return { letter, hue: hash % 360 };
+/** The first letter of a site as people read it. */
+export function initial(display: string): string {
+  return [...display][0]?.toLocaleUpperCase() ?? "?";
 }
 
-export function potionsLabel(available: number): string {
-  if (available === 0) return "No sleep potions left this month";
-  return `${available} sleep potion${available === 1 ? "" : "s"} left this month`;
+/** `3 of 5 left`. */
+export function potionsSummary(available: number, perMonth: number): string {
+  return available === 0 ? "None left this month" : `${available} of ${perMonth} left`;
 }
 
 /** `2026-11-01` as `Nov 1`. */
@@ -79,4 +86,9 @@ export function formatDay(isoDate: string): string {
 /** An RFC 3339 timestamp as a local wall-clock time like `14:05`. */
 export function formatClock(timestamp: string): string {
   return new Date(timestamp).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/** An RFC 3339 timestamp as a short local date like `Oct 17`. */
+export function formatDate(timestamp: string): string {
+  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

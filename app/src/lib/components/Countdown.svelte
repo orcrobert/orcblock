@@ -1,8 +1,12 @@
 <script lang="ts">
   import { describeRemaining, formatClock, formatCountdown } from "../format";
 
-  let { remaining, duration, endsAt }: { remaining: number; duration: number; endsAt: string } =
-    $props();
+  let {
+    remaining,
+    duration,
+    endsAt,
+    sites,
+  }: { remaining: number; duration: number; endsAt: string; sites: number } = $props();
 
   const progress = $derived(duration > 0 ? 1 - remaining / duration : 1);
   // Announced at most once a minute, not every second.
@@ -10,7 +14,7 @@
 </script>
 
 <div class="countdown">
-  <p class="time" aria-hidden="true">{formatCountdown(remaining)}</p>
+  <p class="time tabular" aria-hidden="true">{formatCountdown(remaining)}</p>
   <p class="visually-hidden" aria-live="polite">{announcement}</p>
   <div
     class="track"
@@ -20,39 +24,40 @@
     aria-valuemax="100"
     aria-valuenow={Math.round(progress * 100)}
   >
-    <div class="bar" style:transform="scaleX({progress})"></div>
+    <div class="bar" style:width="{progress * 100}%"></div>
+    <div class="rest"></div>
   </div>
-  <p class="ends">Ends at {formatClock(endsAt)}</p>
+  <p class="meta">
+    Blocking {sites} site{sites === 1 ? "" : "s"} · until {formatClock(endsAt)}
+  </p>
 </div>
 
 <style>
-  .countdown {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-  }
   .time {
     margin: 0;
+    color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-display-large);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.5px;
+    letter-spacing: -1px;
   }
   .track {
-    width: min(100%, 280px);
+    display: flex;
+    gap: var(--space-1);
     height: 4px;
+    margin: var(--space-4) 0 var(--space-3);
+  }
+  .bar,
+  .rest {
     border-radius: var(--md-sys-shape-corner-full);
-    background: var(--md-sys-color-surface-container-highest);
-    overflow: hidden;
   }
   .bar {
-    height: 100%;
     background: var(--md-sys-color-primary);
-    transform-origin: left;
-    transition: transform 1s linear;
+    transition: width var(--md-sys-motion-duration-medium) linear;
   }
-  .ends {
+  .rest {
+    flex: 1;
+    background: var(--md-sys-color-secondary-container);
+  }
+  .meta {
     margin: 0;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-body-medium);

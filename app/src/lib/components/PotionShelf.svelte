@@ -1,21 +1,18 @@
 <script lang="ts">
-  import { formatDay, potionsLabel } from "../format";
+  import { formatDay, potionsSummary } from "../format";
   import type { Potions } from "../api";
-  import Icon from "./Icon.svelte";
 
   let { potions }: { potions: Potions } = $props();
 </script>
 
 <div class="shelf">
-  <div class="flasks" aria-hidden="true">
+  <div class="meter" aria-hidden="true">
     {#each { length: potions.per_month } as _, i (i)}
-      <span class:full={i < potions.available}>
-        <Icon name="flask" size={22} outlined={i >= potions.available} />
-      </span>
+      <span class:full={i < potions.available}></span>
     {/each}
   </div>
   <p>
-    {potionsLabel(potions.available)}
+    {potionsSummary(potions.available, potions.per_month)}
     {#if potions.available < potions.per_month}
       <span class="refill">· more on {formatDay(potions.refill_on)}</span>
     {/if}
@@ -25,25 +22,28 @@
 <style>
   .shelf {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
   }
-  .flasks {
+  .meter {
     display: flex;
-    gap: var(--space-2);
-    color: var(--md-sys-color-outline);
+    gap: var(--space-1);
   }
-  .full {
-    color: var(--md-sys-color-tertiary);
+  .meter span {
+    width: 16px;
+    height: 6px;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-outline-variant);
+  }
+  .meter .full {
+    background: var(--md-sys-color-primary);
   }
   p {
     margin: 0;
-    color: var(--md-sys-color-on-surface-variant);
+    color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-body-medium);
-    text-align: center;
   }
   .refill {
-    white-space: nowrap;
+    color: var(--md-sys-color-on-surface-variant);
   }
 </style>

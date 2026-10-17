@@ -1,13 +1,14 @@
 <script lang="ts">
   import { api, type Site } from "../api";
+  import { formatDate } from "../format";
+  import Avatar from "./Avatar.svelte";
+  import Icon from "./Icon.svelte";
   import IconButton from "./IconButton.svelte";
-  import Monogram from "./Monogram.svelte";
 
   let { site, locked, onremove }: { site: Site; locked: boolean; onremove: (site: Site) => void } =
     $props();
 
   let icon = $state<string | null>(null);
-  let failed = $state(false);
 
   $effect(() => {
     const domain = site.domain;
@@ -27,38 +28,55 @@
 </script>
 
 <li>
-  {#if icon && !failed}
-    <img src={icon} alt="" width="24" height="24" onerror={() => (failed = true)} />
+  <Avatar src={icon} display={site.display} />
+  <div class="text">
+    <span class="headline" title={site.display}>{site.display}</span>
+    <span class="supporting">
+      {locked ? "Blocked until the timer ends" : `Added ${formatDate(site.added_at)}`}
+    </span>
+  </div>
+  {#if locked}
+    <span class="lock"><Icon name="lock" size={20} /></span>
   {:else}
-    <Monogram domain={site.domain} display={site.display} />
+    <IconButton icon="close" label="Remove {site.display}" onclick={() => onremove(site)} />
   {/if}
-  <span class="name" title={site.display}>{site.display}</span>
-  <IconButton
-    icon={locked ? "lock" : "close"}
-    label={locked ? `${site.display} is locked until the block ends` : `Remove ${site.display}`}
-    disabled={locked}
-    onclick={() => onremove(site)}
-  />
 </li>
 
 <style>
   li {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    min-height: 48px;
-    padding-left: var(--space-1);
+    gap: var(--space-4);
+    min-height: 72px;
+    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   }
-  img {
-    border-radius: var(--md-sys-shape-corner-small);
-    object-fit: contain;
+  li + :global(li) {
+    border-top: 1px solid var(--md-sys-color-outline-variant);
   }
-  .name {
+  .text {
+    display: flex;
     flex: 1;
+    flex-direction: column;
     min-width: 0;
+  }
+  .headline,
+  .supporting {
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
-    font: var(--md-sys-typescale-title-medium);
+    text-overflow: ellipsis;
+  }
+  .headline {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-large);
+  }
+  .supporting {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+  }
+  .lock {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    color: var(--md-sys-color-on-surface-variant);
   }
 </style>
