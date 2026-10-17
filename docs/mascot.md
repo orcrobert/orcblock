@@ -1,44 +1,46 @@
 # The orc
 
-OrcBlock's orc is a mark, not a cartoon: a calm, geometric orc head drawn as a single-weight line icon. It sits next to the block state ("Idle", "Guarding") and on the app icon. It is the app's only illustration and its only playful note, so it stays small, quiet and precise. Think of an SF Symbol or a Material Symbol that happens to be an orc.
+OrcBlock's orc is a 1-bit pixel sprite, ORC-01: a stocky, original fantasy orc seen from the front, drawn in the theme's ink with red eyes while it guards and a purple sleep potion when it drinks. It lives in the orc box on the left of the window and is the app's only illustration.
 
-The app ships with a hand-drawn placeholder (`app/src/lib/mascot/Orc.svelte`). This page is the brief for the final mark, with or without AI.
+The app ships with a placeholder sprite (`app/src/lib/mascot/frames.ts`). This page is the brief for the final art.
 
 ## What the app needs
 
-| Asset | Where | Notes |
-| --- | --- | --- |
-| `guarding` | next to "Guarding" while a block runs, 20-32 px | eyes open, brows angled down; a blink every few seconds is the only motion |
-| `sleeping` | next to "Idle" and on the Setup screen | the same head with closed, curved eyes |
-| `icon` | app icon, 1024 × 1024 | the same head in white or near-white on a deep green rounded square (macOS icon grid), no text |
-| `menubar` (later) | the menu bar item | a template image: black on transparent, 18 × 18 pt |
+All frames are 32 x 32 art pixels, shown at 5x. Colours are codes, not RGB, so the theme can recolour them: `#` ink, `r` accent red, `p` potion purple, `.` transparent.
 
-All of them are the same head: same outline, ears, tusks and proportions.
+| Animation | Frames | Speed | Notes |
+| --- | --- | --- | --- |
+| `sleeping` | 2 | 1 fps, loops | idle and on Setup: eyes closed, chest rises and falls, a small "z" drifts up |
+| `guarding` | 8 | 3 fps, loops | a block is running: red eyes (`r`), arms crossed or hand on a weapon hilt, one blink on the last frame |
+| `drinking` | 6 | 4 fps, plays once | after a potion: the vial is in the right hand on frame 1, rises to the mouth, tips, eyes grow heavy and close |
+| vial | 1 (full and empty) | - | 4 x 6 art px; the shelf shows five of them and one flies into the orc's hand |
+
+The drinking sequence is staged by `OrcBox.svelte`: a full vial falls from the shelf into the hand, the swap to the sprite happens on the first drinking frame, and after the last frame the orc sleeps while the empty vial climbs back to its slot. For that to line up, the final art must keep the vial identical in `VIAL_FULL` and in the drinking frames, and `VIAL_IN_HAND` and `VIAL_AT_MOUTH` in `frames.ts` must give the vial's top-left corner on the first and last drinking frames.
 
 ## Style rules
 
-- Line icon on a 24 × 24 grid, 1.5-2 px stroke, round caps and joins, no fills except the pupils. Follows `currentColor`, so it takes the theme's colours.
-- Geometric and calm: a softened shield-shaped head, two pointed ears, two small lower tusks, a heavy brow line. No teeth rows, scars, helmets or weapons.
-- Readable at 16 px. If a detail disappears at that size, remove it.
-- Original design. No film creatures (Uruk-hai, Azog) and no Tolkien names or logos.
+- 1-bit: ink on transparent, red only for the guarding eyes, purple only for potion liquid. No grey, no anti-aliasing, no outline in paper colour except to separate the vial from the body.
+- Front view, centred, feet on the bottom row, same silhouette in every frame so the animations swap cleanly.
+- Original design: heavy brow, small lower tusks, pointed ears, simple armour. No film creatures (Uruk-hai, Azog) and no Tolkien names or logos.
+- Readable at 1x: if a detail vanishes at 32 px, remove it.
 
 ## Making it with AI
 
-1. **Generate candidates** in a model that outputs vectors. Recraft is best here: choose the "Icon" or "Line art" style and export SVG. Midjourney or ChatGPT work too, but give you PNGs that you then vectorise (Recraft's vectoriser, Vectorizer.ai or Illustrator's Image Trace).
-2. **Clean it up** in Figma or Illustrator: snap it to a 24 px grid, set one stroke width, outline nothing, and delete stray points. The final SVG should be a handful of paths.
-3. **Make the second state** by duplicating the head and swapping only the eyes.
-4. **Send me the SVGs** (`guarding.svg`, `sleeping.svg`, `icon.png`). I put the paths into `Orc.svelte` and run `npm --prefix app run tauri icon icon.png` for the app icons.
+Claude can draw the placeholder, but a good sprite comes from a tool built for pixel art.
 
-Prompt for the mark:
-> Minimal line icon of an original fantasy orc head, front view, geometric and calm, softened shield-shaped head, two pointed ears, two small lower tusks, heavy brow, simple dot eyes. Single-weight 2 px stroke, round caps, no fill, no shading, 24 px icon grid, in the style of SF Symbols and Material Symbols, black on white, no text.
+1. **PixelLab** (pixellab.ai) is the best fit: it generates true pixel art at a fixed size, keeps a character consistent across poses and animates it ("animate with text" / skeleton). Create a 32 x 32 character, 1 colour plus transparency, front view.
+2. **Optional concept first** in ChatGPT or Midjourney if you want to explore the look, then feed the best image to PixelLab as a style reference.
+3. **Clean up in Aseprite** (or Pixelorama, free): reduce to the palette above (black, one red, one purple), fix stray pixels, line up the frames and export each animation as a horizontal PNG strip, 32 px per frame.
+4. **Send me the strips** (`sleeping.png`, `guarding.png`, `drinking.png`, `vial.png`). I convert them into `frames.ts` (the generator maps black to `#`, red to `r`, purple to `p`) and set the vial points.
 
-Sleeping variant:
-> The same icon as the reference, identical outline, with the eyes closed as two small downward curves and no brows.
+Prompts for PixelLab:
 
-App icon:
-> macOS app icon, rounded square, deep forest green background with a subtle top-to-bottom tonal shift, centred white line-art orc head identical to the reference icon, generous padding, flat, no text, no glossy effects.
+> Original fantasy orc warrior, front view, stocky, heavy brow, two small lower tusks, pointed ears, simple leather armour, 1-bit pixel art, black on transparent, 32x32, no shading, no anti-aliasing.
 
-## Sizes
+- Guarding: "standing guard, arms crossed, glowing red eyes, subtle idle breathing, blinks once".
+- Sleeping: "same orc asleep standing, eyes closed, head slightly lowered, slow breathing".
+- Drinking: "same orc holding a small potion vial in the right hand, lifts it to the mouth, drinks, eyes close".
 
-- Mark SVGs: under 2 KB each, paths only, `stroke="currentColor"`.
-- Icon: a 1024 × 1024 PNG.
+## App icon
+
+A 1024 x 1024 PNG: the guarding orc's head, scaled up as crisp pixels, ink on the paper colour `#F4F4F0` with red eyes, inside the macOS rounded-square grid, no text. Then `npm --prefix app run tauri icon icon.png` makes every size.

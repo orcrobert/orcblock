@@ -46,7 +46,7 @@ One JSON object per line in each direction (`{"v":1,"cmd":"add_site","site":"you
 ## App (app/)
 
 - `app/src-tauri`: Tauri commands mirror the requests and call the blocking IPC client inside `spawn_blocking`. A background task polls status every 2 s (1 s while a block runs) and emits `status` events. Favicons are fetched once per domain (`https://<domain>/apple-touch-icon.png`, then `/favicon.ico`), checked by magic bytes, capped at 256 KB, cached in the app cache dir and returned as data URLs. If the daemon socket is missing, the UI shows the Setup screen, whose button runs the bundled `orcblockd install` through an admin prompt.
-- `app/src`: Svelte 5 UI. Material 3 tokens in `theme.css`, theme stored in `localStorage` (`system` by default). The orc is a line mark in `lib/mascot/Orc.svelte`, drawn in `currentColor`.
+- `app/src`: Svelte 5 UI. Swiss brutalist tokens in `theme.css` (see the ui-components skill), theme stored in `localStorage` (`system` by default). One window, 900 x 520, resizable only within narrow bounds. The orc is a 1-bit pixel sprite: frames in `lib/mascot/frames.ts`, played by `lib/mascot/Orc.svelte` in the theme's colours.
 
 ## Files on a user's Mac
 

@@ -1,42 +1,45 @@
 ---
 name: ui-components
-description: The Material 3 design tokens, components, theming and screen layout of the OrcBlock app UI (Svelte 5 + TypeScript in app/src). Use when adding or changing components, styles or screens.
+description: The Swiss brutalist design tokens, components, theming and screen layout of the OrcBlock app UI (Svelte 5 + TypeScript in app/src). Use when adding or changing components, styles or screens.
 paths: "app/src/**"
 ---
 
-Look: quiet, utilitarian Material 3. One column, lots of air, neutral grey surfaces, one restrained green accent, large tabular numerals for time, and the orc only as a small line mark next to the state. Light, dark, and System (default, follows `prefers-color-scheme` live).
+Look: Swiss industrial print brutalism. Follow the industrial-brutalist-ui skill (archetype 2.1); this file records how OrcBlock applies it.
+
+## Frame
+- One window, 900 x 520 by default, resizable only between 840 x 490 and 1080 x 620 (`app/src-tauri/tauri.conf.json`). Nothing grows or scrolls except the target list inside its compartment; `html`/`body` never scroll or bounce.
+- Two compartments split by a 2 px rule: left (56 %, 500-600 px) is control: status strip, readout + orc, preset or progress strip, one action. Right is targets: header, prompt, help line, list.
+- Every zone is bounded by visible 1 px or 2 px rules. No border-radius, no shadows, no gradients except hatch patterns and the progress ticks.
 
 ## Tokens (`app/src/lib/theme.css`)
-- Colour roles, neutral surfaces with a single green accent (`#2E6A4B` light, `#9DD4B3` dark), pasted as constants: `--md-sys-color-primary`, `on-primary`, `primary-container`, `on-primary-container`, `secondary(-container)`, `error(-container)`, `surface`, `surface-container-lowest` … `surface-container-highest`, `on-surface`, `on-surface-variant`, `outline`, `outline-variant`, `inverse-surface`, `inverse-on-surface`. Light values on `:root`, dark under `[data-theme="dark"]` and under `@media (prefers-color-scheme: dark)` for `[data-theme="system"]`.
-- Type scale: `--md-sys-typescale-{display,headline,title,body,label}-{large,medium,small}` as `font` shorthands; font stack is the system UI font (SF Pro on macOS), numerals tabular for timers.
-- Shape: `--md-sys-shape-corner-{extra-small,small,medium,large,extra-large,full}` (4, 8, 12, 16, 28, 9999 px).
-- Elevation: `--md-sys-elevation-{0..3}` as box-shadows; prefer tonal surfaces over shadows.
-- Motion: `--md-sys-motion-easing-standard`, `--md-sys-motion-duration-{short,medium}`; all disabled under `prefers-reduced-motion`.
-- Spacing: `--space-{1..8}` (4, 8, 12, 16, 24, 32, 48, 64 px).
-Never write a literal colour outside theme.css.
+- Colour: `--paper`, `--ink`, `--ink-muted`, `--rule`, `--red` (the only accent), `--on-red`, `--hatch`, and `--potion`, a purple used for potion liquid and nothing else. Light is paper `#F4F4F0` with carbon ink and red `#D81414` (darker than the skill's `#E61919` so small red text meets WCAG AA); dark is the same system inverted (`#121212`, `#EAEAEA`, red `#FF2A2A`). System follows `prefers-color-scheme` live. Never mix light and dark in one view; never write a literal colour outside theme.css.
+- Type: system fonts only. `--type-macro` (SF Pro 900, 96-116 px with the window, line-height 0.85, tracking -0.05em) for the one big readout; `--type-headline` for dialog and setup titles; `--type-label` for buttons; `--type-micro` and `--type-data` (SF Mono) for everything else, uppercase with `0.08em` tracking via the `.micro` class.
+- Size: `--row` 40 px (list rows, preset cells), `--gutter` 14 px, `--rule-thin` 1 px, `--rule-thick` 2 px.
+- Texture: a global SVG grain on `body::after`; hatch fills for empty and disabled states.
 
 ## Components (`app/src/lib/components`)
-- `TopBar`: app title left, `ThemeMenu` (icon button opening a menu: System, Light, Dark with a check on the current one) right. Draggable region for the frameless window.
-- `Button`: `variant` = `filled` (one per screen, the main action), `tonal`, `outlined`, `text`; `icon` optional; `wide` fills the container at 48 px; state layer on hover/focus/press via `::before` opacity tokens.
-- `IconButton`: 40 px target, `aria-label` required, `type="submit"` when it submits a form.
-- `TextField`: M3 outlined, 56 px, label floats into a notch in the outline (fieldset/legend), optional `trailing` snippet for an icon button, supporting or error text always reserving its line.
-- `Slider`: M3 slider over a native range input (keyboard and screen readers for free), `valuetext` required.
-- `DurationPicker`: large readout (numbers in display-medium, units in title-large), "Ends at 17:42", and a `Slider` over `DURATION_STOPS` (15 min to 7 days).
-- `SiteRow`: M3 two-line list item: 40 px `Avatar` (favicon, or the first letter on a neutral circle), the cleaned domain, "Added Oct 17" or "Blocked until the timer ends", a remove `IconButton` or a lock icon during a block. Rows sit in a `surface-container-low` list with dividers.
-- `Countdown`: display-large tabular `2:14:09`, an M3 linear progress (active and remaining segments), "Blocking 3 sites · until 17:42", and `aria-live="polite"` text updated once a minute.
-- `PotionShelf`: five short bars, filled for available; "3 of 5 left · more on Nov 1".
-- `Dialog`: modal, focus trapped, Escape closes, scrim `--md-sys-color-scrim` at 32 %.
-- `Snackbar`: bottom, `inverse-surface`, `role="status"`, auto-dismiss 4 s.
-- `Orc` (in `lib/mascot`): a line mark; see the mascot skill.
+- `TopBar`: `[ ORCBLOCK ]`, `REV x.y.z`, `ThemeSwitch` (cycles SYS / LGT / DRK). Drag region; left padding clears the traffic lights.
+- `StatusBar`: `UNIT / ORC-01`, a square status light and `STATUS: IDLE | ARMED | HELPER MISSING` (red when armed), `DRY-RUN` badge in dev.
+- `Button`: full-bleed cell button, `solid` (the one main action per screen), `alert` (red, the potion), `plain`. Label left, `>>>` right. Disabled is hatched.
+- `DurationPicker`: `[ DURATION ]`, the macro readout `H:MM`, `ENDS 17:42`, and an 8-cell strip `− 25M 1H 2H 4H 8H 1D +` (minus and plus step through `DURATION_STOPS`, 15 min to 7 days). Double-clicking the readout (or Enter on it) turns it into an input in the same type with a red underline: `1:30`, `90`, `90m`, `2h`, `1h30`, `2d 4h` (`parseDuration`, 1 min to 7 days); Enter or blur sets it, Escape cancels, out-of-range shows `OUT OF RANGE // 1M TO 7D` in red.
+- `Countdown`: `[ TIME REMAINING ]`, macro `H:MM` with the seconds smaller and red, `ENDS 17:42 // N TARGETS`, and a full-width red progress strip with 10 % ticks.
+- `SiteRow`: `01`, a grayscale favicon (or an empty square), the uppercase domain, the date added and `[ × ]`, or `LOCKED` in red during a block.
+- `PotionVials`: five 1-bit pixel vials at the top of the orc box, purple liquid for each potion left, empty outlines for used ones; always visible on Home.
+- `PotionShelf`: a `<dl>` beside the potion button during a block: `SLEEP POTIONS`, `3/5 LEFT`, `REFILL 2026-11-01`.
+- `Dialog`: square, 2 px ink border, hatched backdrop, red tag strip `[ CONFIRM // SLEEP POTION ]`, headline title, two cell buttons.
+- `Snackbar`: full-width red strip at the bottom, `ERR // message`, 5 s.
+- `OrcBox`: the orc's compartment: vials on top, the sprite, `ORC-01 // ASLEEP | ON GUARD | DRINKING`. `drink(slot)` stages the potion: the vial falls into the hand, the orc drinks and falls asleep, the empty vial climbs back.
+- `Orc` and `Vial` (in `lib/mascot`): see the mascot skill.
 
-## Screens (`app/src/routes` are plain components switched by state, no router)
-- `Setup`: helper not installed. A panel with the mark on a primary-container tile, "Install the helper", one paragraph on why, and a wide filled "Install helper" button (asks for the admin password once).
-- `Home` idle: a panel with the state line (mark + "Idle"), the `DurationPicker` and a wide filled "Start blocking" (disabled with a hint while the list is empty); below, "Sites" with the add field and the list.
-- `Home` blocking: the panel shows the state line (mark + "Guarding") and the `Countdown`; the sites list locks removal but still accepts new sites; "Sleep potions" shows the `PotionShelf` and a wide tonal "End early with a potion" that opens a confirm `Dialog` ("Use 1 of 3 potions to end this block now?").
+## Screens (`app/src/routes`, switched by state, no router)
+- `Setup`: left: `HELPER MISSING`, macro `HELPER REQUIRED`, sleeping orc, `INSTALL HELPER >>>`. Right: `[ WHAT IT DOES ]` with four numbered facts.
+- `Home` idle: left: `IDLE`, the duration picker beside the orc box (potion vials, sleeping orc, caption), `ARM // START BLOCK >>>` (disabled while there are no targets). Right: targets.
+- `Home` blocking: left: `ARMED`, the countdown beside the guarding orc, potions and `DRINK >>>` behind a confirm dialog; after a potion the orc plays `drinking`, then sleeps. Right: targets with removal locked, adding still allowed.
 
 ## Rules
-- One filled button per screen. Destructive or irreversible actions (potion) confirm in a `Dialog`.
-- Domains always go through `formatDomain` (Unicode display of the stored ASCII form).
-- Works at the minimum window size (360 × 560) without horizontal scroll.
-- Every interactive element has a visible `:focus-visible` ring in `--md-sys-color-primary`.
+- One solid button per screen; the potion is the only red button and always confirms.
+- Text colours meet WCAG AA (4.5:1) on paper in both themes; check new tokens before using them for text.
+- Domains display in uppercase via CSS; the stored form is never changed.
+- Semantic tags where they fit: `<output>` for the readout, `<dl>`/`<data>` for potions, `<figure>` for the orc.
+- Every interactive element shows a 2 px red `:focus-visible` outline.
 - Add new components here in the same change that introduces them.

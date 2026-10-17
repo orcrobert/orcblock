@@ -15,7 +15,7 @@ What exists and what is next, in order. `/status` reads this file. Big items get
 - [x] orcblockd: macOS enforcer (resolver files, pf anchor, cache flush) and install/uninstall
 - [x] orcblock CLI
 - [x] Tauri app: helper setup, sites list with favicons, durations, countdown, potions, themes
-- [x] Orc mascot: placeholder line mark for sleeping and guarding
+- [x] Orc mascot: placeholder pixel sprite for sleeping, guarding and drinking
 - [ ] Bundle: .app and .dmg with the daemon as a sidecar
 
 ## 3. Polish

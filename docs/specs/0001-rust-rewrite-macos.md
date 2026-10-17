@@ -6,11 +6,11 @@ Status: approved (maintainer's goal, 2026-10-17)
 OrcBlock is a Python script that edits `/etc/hosts` while it runs in a terminal. Closing the terminal or editing the file ends the block, there is no app to install, and nothing stops you from quitting a block the moment it gets hard. The maintainer wants a real macOS application, written in Rust, whose blocks hold for the time you set, with a small, humane escape hatch: five sleep potions per month.
 
 ## Behaviour
-1. First launch: the app shows the orc mark and "Install the helper" with one paragraph on why a helper keeps blocks running when the app is closed. **Install helper** asks for the admin password once and installs the LaunchDaemon. Cancelling leaves the app on this screen.
-2. Home, idle: the state line reads "Idle" next to the sleeping orc mark. A text field accepts anything that looks like a site (`https://www.YouTube.com/watch?v=1`, `reddit.com/r/x`, `bücher.de`) and adds the cleaned domain (`youtube.com`, `reddit.com`, `bücher.de`) with its favicon, or its first letter if there is none. Duplicates and subdomains of listed sites are rejected with a message. Each row has a remove button.
-3. Duration: a large readout (`1 h 30 min`, "Ends at 17:42") set with a slider that steps from 15 minutes to 7 days, finer at the short end. **Start blocking** is disabled while the list is empty. The CLI accepts any duration from 1 minute to 7 days.
-4. Blocking: the state line reads "Guarding"; a countdown (`1:59:42`) with a progress bar and "Blocking 3 sites · until 17:42"; the list stays visible; new sites can be added and are blocked at once; rows show a lock instead of the remove button ("Blocked until the timer ends"). Closing the app, quitting it, logging out or rebooting does not end the block.
-5. Potions: five bars show how many are left this month. **End early with a potion** opens "Use 1 of N potions to end this block now?" Confirm ends the block immediately. With zero potions the button is disabled and the meter reads "None left this month · more on <date>". Potions refill on the first day of each month.
+1. First launch: the app shows the sleeping orc and "Helper required" with one paragraph on why a helper keeps blocks running when the app is closed. **Install helper** asks for the admin password once and installs the LaunchDaemon. Cancelling leaves the app on this screen.
+2. Home, idle: the status strip reads "Idle" and the orc sleeps. A text field accepts anything that looks like a site (`https://www.YouTube.com/watch?v=1`, `reddit.com/r/x`, `bücher.de`) and adds the cleaned domain (`youtube.com`, `reddit.com`, `bücher.de`) with its favicon, or an empty square if there is none. Duplicates and subdomains of listed sites are rejected with a message. Each row has a remove button.
+3. Duration: a large readout (`1:30`, "Ends 17:42") set with presets (25 min to 1 day) and minus/plus steps from 15 minutes to 7 days, finer at the short end. Double-clicking the readout lets you type any duration from 1 minute to 7 days (`1:30`, `90m`, `2h`, `2d 4h`). **Start blocking** is disabled while the list is empty. The CLI accepts any duration from 1 minute to 7 days.
+4. Blocking: the status strip reads "Armed" and the orc stands guard with red eyes; a countdown (`1:59:42`) with a progress bar and "Ends 17:42 // 3 targets"; the list stays visible; new sites can be added and are blocked at once; rows show "Locked" instead of the remove button. Closing the app, quitting it, logging out or rebooting does not end the block.
+5. Potions: five pixel vials above the orc show how many are left this month (purple liquid for each one left). **Drink** opens "End block now?" with the potions left. Confirm ends the block immediately and the orc drinks, then falls asleep. With zero potions the button is disabled and the shelf shows the refill date. Potions refill on the first day of each month.
 6. When the timer reaches zero the block ends by itself, whether or not the app is open.
 7. Theme menu in the top bar: System (default), Light, Dark. The choice persists.
 8. The `orcblock` CLI offers `status`, `add`, `remove`, `start <duration>` and `potion` against the same daemon.
@@ -29,7 +29,7 @@ OrcBlock is a Python script that edits `/etc/hosts` while it runs in a terminal.
 - [x] `MacEnforcer` writes marked resolver files atomically, removes only marked files, loads the pf anchor, flushes caches; verified with a fake command runner and a temp root.
 - [x] `orcblockd install` and `uninstall` produce the right plist and file modes (temp root in tests); uninstall is refused during a block.
 - [x] The CLI drives a dev daemon end to end.
-- [ ] The app shows Setup without a daemon, Home idle and Home blocking with live status, favicons with monogram fallback, potions, the confirm dialog, and all three themes.
+- [ ] The app shows Setup without a daemon, Home idle and Home blocking with live status, favicons with an empty-square fallback, potions, the confirm dialog, and all three themes.
 - [x] `make bundle` produces `OrcBlock.app` with `orcblockd` inside.
 
 ## Design
