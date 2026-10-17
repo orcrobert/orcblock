@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["tools/agenthooks"]
+members = [
+    "crates/orcblock-core",
+    "tools/agenthooks",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,8 +14,14 @@ repository = "https://github.com/orcrobert/orcblock"
 authors = ["Robert Orban <robyorban@gmail.com>"]
 
 [workspace.dependencies]
+orcblock-core = { path = "crates/orcblock-core" }
+
+idna = "1.1"
+jiff = { version = "0.2.38", features = ["serde"] }
+proptest = "1.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+thiserror = "2.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

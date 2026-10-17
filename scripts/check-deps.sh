@@ -12,7 +12,7 @@ allowed=$(sed -n '/^<!-- allowlist:start -->$/,/^<!-- allowlist:end -->$/p' "$po
 status=0
 fail() { echo "check-deps: $1" >&2; status=1; }
 
-workspace_deps=$(sed -n '/^\[workspace\.dependencies\]/,/^\[/p' "$root/Cargo.toml" | sed -n 's/^\([A-Za-z0-9_-]*\) *=.*/\1/p')
+workspace_deps=$(sed -n '/^\[workspace\.dependencies\]/,/^\[/p' "$root/Cargo.toml" | grep -v 'path *=' | sed -n 's/^\([A-Za-z0-9_-]*\) *=.*/\1/p')
 for dep in $workspace_deps; do
 	printf '%s\n' "$allowed" | grep -qx "$dep" || fail "crate $dep is not allowlisted; add an ADR (docs/decisions/0001-dependency-policy.md)"
 done
