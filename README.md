@@ -1,77 +1,39 @@
-# OrcBlock - Website Blocker
+# <img src="app/src-tauri/icons/128x128@2x.png" alt="" width="48" height="48" align="center"> OrcBlock
 
-A simple and effective Python-based website blocker that helps you stay focused by blocking access to distracting websites. It works by modifying your system's hosts file to redirect specified websites to localhost.
+A website blocker for macOS that you can't talk your way out of. Pick the sites, pick a duration and an orc stands guard until the time is up. Closing the app, quitting it or rebooting does not end the block. The only way out early is a sleep potion, and you get five a month.
 
-## Features
+## How it works
 
-- Add websites to block list
-- Remove websites from block list
-- Make certain websites overridable
-- Real-time blocking and unblocking
-- Simple command-line interface
+- **orcblockd** is a small helper that runs as a LaunchDaemon. It owns the blocklist, the timer and the potions, and it keeps going whether or not the app is open.
+- During a block, macOS sends DNS lookups for the blocked sites to the helper's local resolver, which answers with nowhere (`/etc/resolver` files, no `/etc/hosts`). A pf anchor stops browsers from going around it through DNS over HTTPS or TLS.
+- The timer counts on a monotonic clock, so changing the system clock does not shorten a block. Setting the clock back does not refill potions either.
+- **OrcBlock.app** (Tauri + Svelte) and the **orcblock** CLI are clients. They talk to the helper over a local socket.
 
-## Requirements
+The details are in [docs/architecture.md](docs/architecture.md) and [spec 0001](docs/specs/0001-rust-rewrite-macos.md).
 
-- Python 3.x
-- Typer (for CLI)
-- Administrative privileges (to modify hosts file)
+## Using it
 
-## Installation
+OrcBlock is not packaged yet; a Homebrew cask is on the [roadmap](docs/roadmap.md). To build it from source you need macOS 13+, Rust (rustup picks the pinned toolchain), Node 25 and the Xcode command line tools:
 
-1. Clone this repository:
-```bash
-git clone https://github.com/orcrobert/orcblock.git
-cd orcblock
+```sh
+git clone https://github.com/orcrobert/orcblock && cd orcblock
+npm ci --prefix app
+make bundle          # target/release/bundle/macos/OrcBlock.app
 ```
 
-2. Install the required dependencies:
-```bash
-pip install typer
+Open the app. On first launch it asks for your password once to install the helper. The CLI drives the same helper:
+
+```sh
+orcblock add https://www.youtube.com/watch?v=1   # stored as youtube.com
+orcblock start 1h30m
+orcblock status
+orcblock potion                                  # ends the block, uses one of five
 ```
 
-3. Make the script executable:
-```bash
-chmod +x src/wblock.py
-```
+## Developing
 
-## Usage
-
-### Adding a Website to Block
-```bash
-./src/wblock.py add "example.com"
-```
-
-To make a website overridable (can be unblocked temporarily):
-```bash
-./src/wblock.py add "example.com" --overridable
-```
-
-### Removing a Website from Block List
-```bash
-./src/wblock.py remove "example"
-```
-
-### Running the Blocker
-```bash
-./src/wblock.py run
-```
-
-The blocker will run continuously until you stop it (Ctrl+C). When stopped, it will automatically unblock all websites.
-
-## How It Works
-
-The application works by modifying your system's `/etc/hosts` file to redirect specified websites to localhost (127.0.0.1). This effectively blocks access to the websites on your system.
-
-## Notes
-
-- Requires administrative privileges to modify the hosts file
-- The websites.json file stores your block list configuration
-- Use Ctrl+C to stop the blocker and unblock all websites
+`make daemon-dev` runs the helper without root, and it never touches your system: a dry-run enforcer logs what it would do. `make dev` runs the app against it. `make check` is the gate CI runs. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-This project is open source and available under the MIT License.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+[AGPL-3.0](LICENSE).

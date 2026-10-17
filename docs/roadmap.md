@@ -4,22 +4,22 @@ What exists and what is next, in order. `/status` reads this file. Big items get
 
 ## 1. Agentic workflow
 - [x] AGENTS.md, CLAUDE.md, Claude Code settings, hooks (agenthooks crate), subagents and skills
-- [x] CI, nightly advisories, release workflow, Claude bots, dependabot, templates
+- [x] CI, nightly advisories, release workflow, the @claude bot, dependabot, templates
 - [x] Licence (AGPL-3.0), code of conduct, contributing and security policies, ADRs
 
 ## 2. Rust rewrite, macOS (spec 0001)
-- [ ] orcblock-core: domains, blocklist, sessions, potion ledger, state machine
-- [ ] orcblock-ipc: wire protocol and client
-- [ ] orcblockd: store, service, tick loop, socket server, dry-run enforcer, dev mode
-- [ ] orcblockd: DNS sinkhole
-- [ ] orcblockd: macOS enforcer (resolver files, pf anchor, cache flush) and install/uninstall
-- [ ] orcblock CLI
-- [ ] Tauri app: helper setup, sites list with favicons, durations, countdown, potions, themes
-- [ ] Orc mascot: placeholder animated SVGs for sleeping and guarding
+- [x] orcblock-core: domains, blocklist, sessions, potion ledger, state machine
+- [x] orcblock-ipc: wire protocol and client
+- [x] orcblockd: store, service, tick loop, socket server, dry-run enforcer, dev mode
+- [x] orcblockd: DNS sinkhole
+- [x] orcblockd: macOS enforcer (resolver files, pf anchor, cache flush) and install/uninstall
+- [x] orcblock CLI
+- [x] Tauri app: helper setup, sites list with favicons, durations, countdown, potions, themes
+- [x] Orc mascot: placeholder pixel sprite for sleeping, guarding and drinking
 - [ ] Bundle: .app and .dmg with the daemon as a sidecar
 
 ## 3. Polish
-- [ ] Final orc art (see docs/mascot.md) and a "drinking" animation when a potion is spent
+- [ ] Final orc mark and app icon (see docs/mascot.md)
 - [ ] Menu bar item showing the time left
 - [ ] Notifications when a block starts, has 5 minutes left and ends
 - [ ] Extend a running block (+15 min, +1 h)

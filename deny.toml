@@ -1,5 +1,8 @@
 [graph]
 all-features = true
+# OrcBlock ships for macOS only; Linux and Windows dependencies (GTK, WebView2)
+# are checked when those targets are added.
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
 
 [advisories]
 version = 2

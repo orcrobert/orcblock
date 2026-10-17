@@ -27,6 +27,13 @@ pub const DEFAULT_ADDR: SocketAddr = SocketAddr::V4(std::net::SocketAddrV4::new(
     53535,
 ));
 
+/// Where the sinkhole listens with `serve --dev`: a different port, so a dev
+/// daemon never takes the installed helper's.
+pub const DEV_ADDR: SocketAddr = SocketAddr::V4(std::net::SocketAddrV4::new(
+    std::net::Ipv4Addr::LOCALHOST,
+    53536,
+));
+
 /// Names answered NXDOMAIN while a block runs: Firefox's DNS-over-HTTPS canary and
 /// iCloud Private Relay's opt-out names. The enforcer routes them here too.
 pub const CANARIES: [&str; 3] = [

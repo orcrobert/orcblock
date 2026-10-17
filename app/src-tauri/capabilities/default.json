@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window: the app's own commands, the status event and dragging the title bar. Nothing else from core.",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "allow-status",
+    "allow-add-site",
+    "allow-remove-site",
+    "allow-start-block",
+    "allow-drink-potion",
+    "allow-favicon",
+    "allow-install-helper"
+  ]
+}

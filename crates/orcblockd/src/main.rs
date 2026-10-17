@@ -48,9 +48,10 @@ struct ServeArgs {
     /// The socket path with --dev [default: <data-dir>/orcblockd.sock].
     #[arg(long, requires = "dev")]
     socket: Option<PathBuf>,
-    /// Where the DNS sinkhole listens; resolver files point here.
-    #[arg(long, default_value_t = dns::DEFAULT_ADDR)]
-    dns_addr: SocketAddr,
+    /// Where the DNS sinkhole listens; resolver files point here
+    /// [default: 127.0.0.1:53535, or 127.0.0.1:53536 with --dev].
+    #[arg(long)]
+    dns_addr: Option<SocketAddr>,
 }
 
 fn main() -> ExitCode {
@@ -94,19 +95,20 @@ fn serve(args: ServeArgs) -> Result<()> {
             DryRunEnforcer::default(),
             Mode::DryRun,
             &socket,
-            args.dns_addr,
+            args.dns_addr.unwrap_or(dns::DEV_ADDR),
         )
     } else {
         require_root()?;
         let layout = Layout::system();
         fs::create_dir_all(layout.data_dir()).context("create the data directory")?;
-        let enforcer = MacEnforcer::new(layout.clone(), SystemRunner, args.dns_addr.port());
+        let dns_addr = args.dns_addr.unwrap_or(dns::DEFAULT_ADDR);
+        let enforcer = MacEnforcer::new(layout.clone(), SystemRunner, dns_addr.port());
         run_daemon(
             Store::new(layout.state_file()),
             enforcer,
             Mode::Live,
             &layout.socket(),
-            args.dns_addr,
+            dns_addr,
         )
     }
 }

@@ -4,23 +4,24 @@ description: How the orc mascot is built and swapped - states, file layout, anim
 paths: "app/src/lib/mascot/**"
 ---
 
-Art direction and AI prompts: docs/mascot.md.
+Art direction and how the final sprites are made: docs/mascot.md.
 
 ## States
-| State | When | Feel |
+| State | When | Animation |
 | --- | --- | --- |
-| `sleeping` | no block running | curled up, slow breathing, drifting "z" |
-| `guarding` | a block is running | standing in the path with a club, gentle sway, occasional blink |
-| `drinking` | right after a potion is spent | drinks, wobbles, falls asleep (plays once, then `sleeping`) |
+| `sleeping` | no block running, Setup | 2 frames at 1 fps: breathing, drifting z, loops |
+| `guarding` | a block is running | 8 frames at 3 fps: red eyes, one blink, loops |
+| `drinking` | right after a potion | 6 frames at 4 fps: lifts the red potion, drinks, eyes close; plays once, holds, then `ondone` |
 
 ## Files
-- `Orc.svelte` takes `state` and `size` and renders the current art; it is the only component the rest of the UI uses.
-- `art/` holds one asset per state. The built-in placeholders are inline SVGs with CSS keyframes (`sleeping.svg`, `guarding.svg`). Final art can be animated SVG, a sprite-sheet PNG (`<state>.png` + frame count in `frames.ts`) or Lottie JSON if an ADR adds the player.
-- Colours in the SVGs use `currentColor` and CSS variables (`--orc-skin`, `--orc-ink`) so the orc follows the theme.
+- `frames.ts`: the frames as 32 x 32 strings (`#` ink, `r` red, `p` potion purple, `.` transparent) with `fps` and `loop` per state. The current art is a placeholder; final art replaces this file only.
+- `Orc.svelte`: takes `pose`, `scale` (screen px per art px) and `ondone`, plays the frames as crisp SVG rects in `--ink`, `--red` and `--potion`, so it follows the theme.
+- `Vial.svelte`: one potion vial, full or empty, from `VIAL_FULL` / `VIAL_EMPTY`; sized by its container.
+- `pixels.ts`: `pixelRuns` and the code-to-colour map shared by both.
+- `OrcBox` (components) stages the potion: the shelf vial flies to `VIAL_IN_HAND`, `drinking` plays, then the orc sleeps and the empty vial climbs from `VIAL_AT_MOUTH` back to its slot. Keep the vial art in the frames identical to `VIAL_FULL`.
 
 ## Rules
-- Decorative: wrapper has `aria-hidden="true"`; state changes are announced by text elsewhere.
-- Under `prefers-reduced-motion: reduce`, show the first frame only.
-- Loops are slow (3-6 s) and subtle; nothing flashes more than three times a second.
-- Size budget: each state under 60 KB.
-- New art replaces a file in `art/` with the same name; `Orc.svelte` should not need changes unless the format changes.
+- 1-bit look: ink, the accent red (eyes) and potion purple (the liquid) only, no anti-aliasing (`shape-rendering: crispEdges`), integer scale.
+- Decorative: the svg has `aria-hidden="true"`; the caption and status strip carry the state in text.
+- Under `prefers-reduced-motion: reduce`: first frame only; `drinking` still calls `ondone`.
+- Nothing flashes more than three times a second.
