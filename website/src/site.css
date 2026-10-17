@@ -1,0 +1,163 @@
+/* The site on top of the app's tokens ($app/theme.css). That file is written
+   for a fixed-size window, so the page undoes its no-scroll, no-select rules
+   here. Colours come only from the app's tokens. */
+
+html,
+body {
+  height: auto;
+  overflow: visible auto;
+  overscroll-behavior: auto;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: auto;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 56px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  --page: 1180px;
+  --pad: clamp(16px, 4vw, 40px);
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: var(--rule-thin);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: var(--red);
+}
+
+button {
+  cursor: pointer;
+}
+
+/* One full-bleed band per section, the content on a centred page column. */
+.band {
+  border-bottom: var(--rule-thick) solid var(--rule);
+}
+
+.page {
+  width: 100%;
+  max-width: var(--page);
+  margin: 0 auto;
+  border-left: var(--rule-thin) solid var(--rule);
+  border-right: var(--rule-thin) solid var(--rule);
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--gutter);
+  height: 28px;
+  padding: 0 var(--gutter);
+  border-bottom: var(--rule-thin) solid var(--rule);
+}
+
+.section-head h2 {
+  margin: 0;
+  font: inherit;
+}
+
+.headline {
+  margin: 0;
+  font: 900 clamp(44px, 8vw, 96px) / 0.86 var(--font-macro);
+  letter-spacing: var(--tracking-macro);
+  text-transform: uppercase;
+}
+
+.lead {
+  max-width: 34em;
+  margin: 0;
+  font: 400 clamp(16px, 1.6vw, 19px) / 1.5 var(--font-macro);
+}
+
+.red {
+  color: var(--red);
+}
+
+.hatch {
+  background: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 8px);
+}
+
+/* Revealed once on scroll by the `reveal` action: a mechanical slide in two
+   steps rather than a smooth fade. */
+[data-reveal] {
+  transition:
+    opacity 240ms steps(3, end),
+    translate 240ms steps(3, end);
+}
+
+[data-reveal="hidden"] {
+  opacity: 0;
+  translate: 0 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    transition: none;
+  }
+
+  [data-reveal="hidden"] {
+    opacity: 1;
+    translate: none;
+  }
+}
+
+/* A logo in front of a button label. */
+.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The privacy page: static text on the page column. */
+.privacy .section-head h1 {
+  margin: 0;
+  font: inherit;
+}
+
+.privacy .text {
+  max-width: 44em;
+  padding: clamp(24px, 5vw, 56px) var(--pad);
+}
+
+.privacy .headline {
+  margin-bottom: 32px;
+}
+
+.privacy h2 {
+  margin: 32px 0 8px;
+  font: 900 22px/1 var(--font-macro);
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.privacy p:not(.headline) {
+  margin: 0 0 12px;
+  font: 400 16px/1.55 var(--font-macro);
+}
+
+.privacy p.micro:not(.headline) {
+  margin-top: 32px;
+  font: var(--type-micro);
+}
+
+/* The app's muted grey and hatching are tuned for a small window; across a
+   page of small mono text on hatching they read too faint and too busy in
+   dark, so the site lifts the grey and quiets the hatch. */
+:root[data-theme="dark"] {
+  --ink-muted: #b4b4ae;
+  --hatch: rgb(234 234 234 / 0.09);
+}

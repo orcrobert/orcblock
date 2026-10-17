@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="/theme.js"></script>
+    <title>Blocked · OrcBlock</title>
+    <!-- Standalone so it renders without the bundle; the colours mirror
+         app/src/lib/theme.css. -->
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f4f4f0;
+        --ink: #111111;
+        --red: #d81414;
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --paper: #121212;
+        --ink: #eaeaea;
+        --red: #ff2a2a;
+      }
+      body {
+        display: grid;
+        place-content: center;
+        gap: 16px;
+        min-height: 100vh;
+        margin: 0;
+        padding: 16px;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          500 14px/1.4 ui-monospace,
+          "SF Mono",
+          Menlo,
+          monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font:
+          900 clamp(72px, 18vw, 160px) / 0.85 -apple-system,
+          BlinkMacSystemFont,
+          "Helvetica Neue",
+          Arial,
+          sans-serif;
+        letter-spacing: -0.05em;
+      }
+      span {
+        color: var(--red);
+      }
+      a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <p><span>■</span> STATUS: 404 // PAGE NOT FOUND</p>
+    <h1>Nothing<br />here<span>.</span></h1>
+    <p>THE ORC CHECKED. <a href="/">BACK TO ORCBLOCK</a></p>
+  </body>
+</html>
