@@ -22,6 +22,15 @@ updates:
         patterns: ["@tauri-apps/*"]
       svelte:
         patterns: ["svelte", "@sveltejs/*", "svelte-check"]
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      svelte:
+        patterns: ["svelte", "@sveltejs/*", "svelte-check"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

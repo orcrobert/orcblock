@@ -28,14 +28,15 @@ for manifest in $(cd "$root" && git ls-files '*Cargo.toml' | grep -v '^Cargo.tom
 	' "$root/$manifest" >&2 || status=1
 done
 
-if [ -f "$root/app/package.json" ]; then
+for package in app website; do
+	[ -f "$root/$package/package.json" ] || continue
 	npm_deps=$(node -e '
 		const p = require(process.argv[1]);
 		console.log(Object.keys({ ...p.dependencies, ...p.devDependencies }).join("\n"));
-	' "$root/app/package.json")
+	' "$root/$package/package.json")
 	for dep in $npm_deps; do
-		printf '%s\n' "$allowed" | grep -qx "npm:$dep" || fail "npm package $dep is not allowlisted; add an ADR (docs/decisions/0001-dependency-policy.md)"
+		printf '%s\n' "$allowed" | grep -qx "npm:$dep" || fail "npm package $dep in $package/ is not allowlisted; add an ADR (docs/decisions/0001-dependency-policy.md)"
 	done
-fi
+done
 
 exit $status

@@ -7,7 +7,8 @@ A release is a version bump merged into main. Every push to main runs `.github/w
 1. On a branch, set the new version in all four places: `[workspace.package]` in `Cargo.toml`, `app/src-tauri/tauri.conf.json`, `app/package.json` and `app/package-lock.json` (run `npm --prefix app version X.Y.Z --no-git-tag-version` for the two npm files). `make check` fails while they disagree.
 2. Merge the PR.
 3. Wait for the release workflow. A `version` job finds the untagged version. A `build` job with read-only access checks the versions agree, runs `make check` and builds the universal app with `make bundle-universal`, without caches. A separate `publish` job, which runs no repository code, attests the files, creates the tag and publishes the release with notes from the commits.
-4. Edit the notes on GitHub if needed. A version with a suffix, such as `1.0.0-beta.1`, is published as a pre-release. If the workflow failed, fix the cause on a branch and merge, or rerun it from the Actions tab (`workflow_dispatch`, main only).
+4. Edit the notes on GitHub if needed. A version with a suffix, such as `1.0.0-beta.1`, is published as a pre-release. If the workflow failed, fix the cause on a branch and merge, or rerun it from the Actions tab (`workflow_dispatch`, main only). The website's download button follows a published release at once.
+5. If the app looks different, refresh the website's screenshots with `make site-screenshots` on a branch (website/README.md).
 
 ## What a release contains
 

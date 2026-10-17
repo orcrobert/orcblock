@@ -5,7 +5,7 @@ UNIVERSAL := universal-apple-darwin
 DATA_DIR := $(CURDIR)/data
 SOCKET := $(DATA_DIR)/orcblockd.sock
 
-.PHONY: check fmt fmt-check lint test deny deps versions ui-check hooks tools daemon-dev dev sidecar bundle sidecar-universal bundle-universal install-helper
+.PHONY: check fmt fmt-check lint test deny deps versions ui-check hooks tools daemon-dev dev sidecar bundle sidecar-universal bundle-universal install-helper site-dev site-check site-build site-screenshots
 
 check: fmt-check lint test deny deps versions ui-check
 
@@ -86,3 +86,17 @@ bundle-universal: sidecar-universal
 install-helper:
 	cargo build -p orcblockd --release --locked
 	sudo target/release/orcblockd install
+
+site-dev:
+	npm --prefix website run dev
+
+site-check:
+	npm --prefix website run check
+	npm --prefix website test
+	npm --prefix website run format:check
+
+site-build:
+	npm --prefix website run build
+
+site-screenshots:
+	npm --prefix website run screenshots

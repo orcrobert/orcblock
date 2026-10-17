@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f4f4f0" />
+    <script src="/theme.js"></script>
+    <title>OrcBlock: a website blocker you can't talk your way out of</title>
+    <meta
+      name="description"
+      content="Pick the sites, pick the time, and an orc stands guard until it's over. Free website blocker for macOS. The only way out early: one of five sleep potions a month."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="OrcBlock" />
+    <meta
+      property="og:description"
+      content="A website blocker for macOS that you can't talk your way out of."
+    />
+    <link rel="icon" type="image/png" sizes="32x32" href="../app/src-tauri/icons/32x32.png" />
+    <link rel="apple-touch-icon" href="../app/src-tauri/icons/128x128@2x.png" />
+  </head>
+  <body>
+    <div id="site"></div>
+    <noscript>
+      <p>
+        OrcBlock is a website blocker for macOS.
+        <a href="https://github.com/orcrobert/orcblock/releases/latest/download/OrcBlock.dmg"
+          >Download for macOS</a
+        >
+        or read more on <a href="https://github.com/orcrobert/orcblock">GitHub</a>.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

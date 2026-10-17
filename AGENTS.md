@@ -11,6 +11,7 @@ Read this file before any task. Details live in docs/; open them only when relev
 - `cargo run -p orcblock-cli -- status`: talk to a daemon from the terminal. Add `--socket ./data/orcblockd.sock` for the dev daemon.
 - `make bundle`: build `OrcBlock.app` and the dmg into target/release/bundle.
 - `make bundle-universal`: the release build: one ad hoc signed app for Apple Silicon and Intel and `OrcBlock.dmg` in target/universal-apple-darwin/release/bundle. Merging a version bump into main releases it; see docs/releasing.md.
+- `make site-dev`, `make site-check`, `make site-build`: the website in website/ (needs `npm ci --prefix app` and `npm ci --prefix website`). `make site-screenshots` re-renders its app screenshots. Not part of `make check`: run `make site-check` after changing app/src/lib, which the site imports. Deployed to Cloudflare Pages from main; see website/README.md.
 - `make install-helper`: install the freshly built daemon as the real LaunchDaemon (asks for sudo; changes the system). Only when the user asks.
 
 ## Map
@@ -20,6 +21,7 @@ Read this file before any task. Details live in docs/; open them only when relev
 - crates/orcblock-cli: `orcblock`, a thin terminal client over orcblock-ipc.
 - app/src-tauri (crate orcblock-app): Tauri commands, the daemon connection, favicon fetching and cache, the tray.
 - app/src: the Svelte 5 + TypeScript UI. Design tokens in app/src/lib/theme.css; the orc mascot in app/src/lib/mascot.
+- website: the download site (Vite + Svelte 5), reusing app/src/lib's tokens, orc and vials through the `$app` alias. Non-technical copy; technical detail lives in the README.
 - tools/agenthooks: Claude Code hooks. Tested like any other crate.
 - docs/architecture.md: how the pieces fit. docs/specs: one spec per feature. docs/decisions: ADRs. docs/roadmap.md: what is next. docs/mascot.md: how the orc art is made.
 
