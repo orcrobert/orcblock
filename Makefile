@@ -30,3 +30,6 @@ hooks:
 
 tools:
 	cargo install cargo-deny --version $(CARGO_DENY_VERSION) --locked
+
+daemon-dev:
+	cargo run -p orcblockd -- serve --dev --data-dir $(DATA_DIR) --socket $(SOCKET)
