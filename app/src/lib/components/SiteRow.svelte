@@ -43,7 +43,7 @@
   {#if locked}
     <span class="state micro locked">LOCKED</span>
   {:else}
-    <span class="state micro muted">{formatIsoDay(site.added_at)}</span>
+    <span class="state date micro muted">{formatIsoDay(site.added_at)}</span>
     <button
       type="button"
       class="micro"
@@ -87,6 +87,12 @@
   }
   .state {
     padding-right: var(--gutter);
+  }
+  /* At the narrowest window the name needs the room more than the date. */
+  @container targets (max-width: 380px) {
+    .date {
+      display: none;
+    }
   }
   .locked {
     color: var(--red);

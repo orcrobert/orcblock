@@ -18,11 +18,14 @@
 
 <div class="countdown">
   <p class="micro muted">[ TIME REMAINING ]</p>
-  <p class="time tabular" aria-hidden="true">
+  <p class="time tabular" class:long={main.length > 4} aria-hidden="true">
     {main}<span class="seconds">{seconds}</span>
   </p>
   <p class="visually-hidden" aria-live="polite">{announcement}</p>
-  <p class="micro">ENDS {formatClock(endsAt)} <span class="muted">// {sites} TARGETS</span></p>
+  <p class="micro">
+    ENDS {formatClock(endsAt)}
+    <span class="muted">// {sites} TARGETS // {Math.round(progress * 100)}%</span>
+  </p>
 </div>
 
 <div
@@ -34,7 +37,6 @@
   aria-valuenow={Math.round(progress * 100)}
 >
   <div class="fill" style:width="{progress * 100}%"></div>
-  <span class="pct micro">{Math.round(progress * 100)}%</span>
 </div>
 
 <style>
@@ -51,6 +53,10 @@
     margin: 4px 0 2px -3px;
     font: var(--type-macro);
     letter-spacing: var(--tracking-macro);
+  }
+  /* Ten hours and up (blocks run to 168:00) would overflow the column. */
+  .time.long {
+    font-size: calc(var(--macro-size) * 0.72);
   }
   .seconds {
     font: var(--type-headline);
@@ -70,14 +76,6 @@
   .fill {
     height: 100%;
     background: var(--red);
-    transition: width 1s linear;
-  }
-  .pct {
-    position: absolute;
-    right: var(--gutter);
-    top: 50%;
-    transform: translateY(-50%);
-    mix-blend-mode: difference;
-    color: var(--paper);
+    transition: width var(--motion-progress) linear;
   }
 </style>

@@ -3,6 +3,7 @@
   import { VIAL_AT_MOUTH, VIAL_FULL, VIAL_IN_HAND } from "../mascot/frames";
   import Orc from "../mascot/Orc.svelte";
   import Vial from "../mascot/Vial.svelte";
+  import { prefersReducedMotion } from "../motion";
   import PotionVials from "./PotionVials.svelte";
 
   let { potions, guarding }: { potions: Potions; guarding: boolean } = $props();
@@ -10,8 +11,6 @@
   const SCALE = 5;
   const VIAL_WIDTH = (VIAL_FULL[0] ?? "").length;
   const VIAL_HEIGHT = VIAL_FULL.length;
-  const reduced =
-    typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   type Phase = "fall" | "drink" | "rise";
   let phase = $state<Phase | null>(null);
@@ -65,7 +64,7 @@
       height: `${box.height}px`,
     });
     const animation = flyer.animate([px(from), px(to)], {
-      duration: reduced ? 0 : rising ? 900 : 520,
+      duration: prefersReducedMotion() ? 0 : rising ? 900 : 520,
       // Falls under gravity; climbs back with a gentle start and stop.
       easing: rising ? "cubic-bezier(0.45, 0, 0.25, 1)" : "cubic-bezier(0.55, 0, 1, 0.45)",
       fill: "forwards",
@@ -78,7 +77,7 @@
 </script>
 
 <figure class="orc" bind:this={figure}>
-  <PotionVials {potions} away={phase === null ? -1 : slot} />
+  <PotionVials {potions} away={phase === null ? -1 : slot} announce={!guarding} />
   <div class="sprite" bind:this={sprite}>
     <Orc {pose} scale={SCALE} ondone={() => (phase = "rise")} />
   </div>

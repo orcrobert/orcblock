@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ANIMATIONS, SIZE, type OrcState } from "./frames";
   import { fillOf, pixelRuns } from "./pixels";
+  import { prefersReducedMotion } from "../motion";
 
   let {
     pose,
@@ -15,16 +16,16 @@
   } = $props();
 
   const HOLD_FRAMES = 3;
-  const reduced =
-    typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let index = $state(0);
   const animation = $derived(ANIMATIONS[pose] ?? ANIMATIONS.sleeping);
 
   $effect(() => {
     index = 0;
-    if (reduced) {
+    if (prefersReducedMotion()) {
       if (animation.loop) return;
+      // A still of the end pose, so the state still reads without motion.
+      index = animation.frames.length - 1;
       const timer = setTimeout(() => ondone?.(), 800);
       return () => clearTimeout(timer);
     }

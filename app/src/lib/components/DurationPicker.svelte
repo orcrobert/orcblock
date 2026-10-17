@@ -8,6 +8,7 @@
     presetLabel,
     stepDuration,
   } from "../format";
+  import { tick } from "svelte";
 
   let { minutes = $bindable(60) }: { minutes?: number } = $props();
 
@@ -18,6 +19,7 @@
   });
 
   let editing = $state(false);
+  let readout: HTMLButtonElement | undefined = $state();
   let draft = $state("");
   const parsed = $derived(parseDuration(draft));
   const invalid = $derived(editing && draft.trim() !== "" && parsed === undefined);
@@ -34,13 +36,21 @@
     editing = false;
   }
 
+  async function refocus() {
+    await tick();
+    readout?.focus();
+  }
+
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (parsed !== undefined) commit();
+      if (parsed === undefined) return;
+      commit();
+      void refocus();
     } else if (event.key === "Escape") {
       event.preventDefault();
       editing = false;
+      void refocus();
     }
   }
 
@@ -68,7 +78,7 @@
       aria-invalid={invalid}
       aria-describedby="duration-hint"
     />
-    <p id="duration-hint" class="micro" class:alert={invalid}>
+    <p id="duration-hint" class="micro" class:alert={invalid} aria-live="polite">
       {#if invalid}
         OUT OF RANGE <span class="muted">// 1M TO 7D</span>
       {:else}
@@ -76,21 +86,25 @@
       {/if}
     </p>
   {:else}
+    <!-- Mouse users double-click; keyboard and VoiceOver activation sends a
+         click with detail 0, which opens the editor straight away. -->
     <button
+      bind:this={readout}
       type="button"
       class="readout tabular"
       class:long={formatHoursMinutes(minutes).length > 5}
       ondblclick={edit}
-      onkeydown={(event) => event.key === "Enter" && (event.preventDefault(), edit())}
-      aria-label="Duration {formatMinutes(minutes)}. Press Enter to type a custom duration."
-      title="Double-click to type a duration"
-      ><output aria-live="polite">{formatHoursMinutes(minutes)}</output></button
+      onclick={(event) => event.detail === 0 && edit()}
+      aria-label="Duration {formatMinutes(minutes)}. Activate to type a custom duration."
+      title="Double-click to type a duration"><output>{formatHoursMinutes(minutes)}</output></button
     >
     <p class="micro">
-      ENDS {formatEnds(now, minutes)} <span class="muted hint">// DBL-CLICK TO TYPE</span>
+      ENDS {formatEnds(now, minutes)} <span class="muted">// DBL-CLICK TO TYPE</span>
     </p>
   {/if}
 </div>
+
+<p class="visually-hidden" aria-live="polite">Duration {formatMinutes(minutes)}</p>
 
 <div class="cells" role="group" aria-label="Duration">
   <button type="button" aria-label="Shorter" onclick={() => (minutes = stepDuration(minutes, -1))}
@@ -136,7 +150,7 @@
   }
   /* Seven-day blocks read 168:00; shrink so they stay inside the column. */
   .readout.long {
-    font-size: 0.78em;
+    font-size: calc(var(--macro-size) * 0.72);
   }
   button.readout:hover {
     border-bottom-color: var(--ink);
@@ -158,14 +172,7 @@
   .alert {
     color: var(--red);
   }
-  .hint {
-    opacity: 0;
-    transition: opacity var(--motion-fast);
-  }
-  .picker:hover .hint,
-  button.readout:focus-visible + p .hint {
-    opacity: 1;
-  }
+
   .cells {
     display: grid;
     grid-template-columns: repeat(8, 1fr);

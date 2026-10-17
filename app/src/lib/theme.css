@@ -24,7 +24,8 @@
   --type-micro: 500 12px/1.3 var(--font-mono);
   --type-data: 500 14px/1.3 var(--font-mono);
   --type-label: 800 14px/1 var(--font-macro);
-  --type-macro: 900 clamp(96px, 11vw, 116px)/0.85 var(--font-macro);
+  --macro-size: clamp(96px, 11vw, 116px);
+  --type-macro: 900 var(--macro-size)/0.85 var(--font-macro);
   --type-headline: 900 40px/0.9 var(--font-macro);
   --tracking-micro: 0.08em;
   --tracking-macro: -0.05em;
@@ -35,6 +36,7 @@
   --gutter: 14px;
 
   --motion-fast: 80ms;
+  --motion-progress: 1s;
 
   color-scheme: light;
 }
@@ -70,6 +72,7 @@
 @media (prefers-reduced-motion: reduce) {
   :root {
     --motion-fast: 0ms;
+    --motion-progress: 0ms;
   }
 }
 

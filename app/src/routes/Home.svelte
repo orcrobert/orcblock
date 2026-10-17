@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { api, errorMessage, type Site, type Status } from "../lib/api";
   import Button from "../lib/components/Button.svelte";
   import Countdown from "../lib/components/Countdown.svelte";
@@ -25,6 +26,7 @@
   let minutes = $state(DEFAULT_MINUTES);
   let confirming = $state(false);
   let orcBox: OrcBox | undefined = $state();
+  let control: HTMLElement | undefined = $state();
   let busy = $state(false);
 
   const block = $derived(status.block);
@@ -64,12 +66,21 @@
     if (await run(api.drinkPotion)) {
       confirming = false;
       orcBox?.drink(used);
+      // The dialog would return focus to the potion button, which is gone
+      // now that the block has ended.
+      await tick();
+      control?.focus();
     }
   }
 </script>
 
 <div class="screen">
-  <section class="control" aria-label={block ? "Block in progress" : "New block"}>
+  <section
+    class="control"
+    bind:this={control}
+    tabindex="-1"
+    aria-label={block ? "Block in progress" : "New block"}
+  >
     <StatusBar armed={block !== null} label={block ? "ARMED" : "IDLE"} mode={status.mode} />
     {#if block}
       <Countdown
@@ -107,10 +118,11 @@
     </header>
 
     <form class="prompt" onsubmit={addSite}>
-      <label for="site" class="micro">&gt;</label>
+      <span class="micro" aria-hidden="true">&gt;</span>
       <input
         id="site"
         bind:value={site}
+        aria-label="Add a site"
         placeholder="YOUTUBE.COM"
         inputmode="url"
         autocomplete="off"
@@ -166,6 +178,7 @@
   /* Left compartment: status, readout and orc, the preset or progress
      strip, and the one action. The components' parts land in its cells. */
   .control {
+    outline: none;
     display: grid;
     grid-template-columns: 1fr 176px;
     grid-template-rows: auto 1fr var(--row) 64px;
@@ -195,6 +208,7 @@
 
   /* Right compartment: the target list, which alone scrolls. */
   .targets {
+    container: targets / inline-size;
     display: grid;
     grid-template-rows: 28px 40px auto 1fr;
     min-height: 0;
@@ -215,7 +229,7 @@
     grid-template-columns: 28px 1fr auto;
     border-bottom: var(--rule-thin) solid var(--rule);
   }
-  .prompt label {
+  .prompt > span {
     display: grid;
     place-items: center;
     border-right: var(--rule-thin) solid var(--rule);
@@ -236,7 +250,7 @@
   }
   input::placeholder {
     color: var(--ink-muted);
-    opacity: 0.6;
+    opacity: 1;
   }
   .prompt:focus-within {
     box-shadow: inset 0 -2px 0 var(--red);

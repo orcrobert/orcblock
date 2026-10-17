@@ -35,7 +35,7 @@
 
 <style>
   dialog {
-    width: calc(100vw - 2 * var(--gutter));
+    width: min(480px, calc(100vw - 2 * var(--gutter)));
     padding: 0;
     border: var(--rule-thick) solid var(--ink);
     background: var(--paper);
