@@ -9,6 +9,7 @@
 
 mod blocked;
 mod clock;
+pub mod dns;
 mod enforce;
 pub mod server;
 mod service;

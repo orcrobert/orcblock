@@ -1,12 +1,15 @@
 use std::fs;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
 use orcblock_ipc::Mode;
+use orcblockd::dns::{self, Sinkhole};
 use orcblockd::{Blocked, DryRunEnforcer, Service, Store, SystemClock, server};
 use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::watch;
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
@@ -38,6 +41,9 @@ struct ServeArgs {
     /// The socket path [default with --dev: <data-dir>/orcblockd.sock].
     #[arg(long)]
     socket: Option<PathBuf>,
+    /// Where the DNS sinkhole listens; resolver files point here.
+    #[arg(long, default_value_t = dns::DEFAULT_ADDR)]
+    dns_addr: SocketAddr,
 }
 
 fn main() -> ExitCode {
@@ -68,18 +74,24 @@ fn serve(args: ServeArgs) -> Result<()> {
         .socket
         .unwrap_or_else(|| data_dir.join("orcblockd.sock"));
 
+    let runtime = tokio::runtime::Runtime::new().context("start the async runtime")?;
+    let sinkhole = runtime
+        .block_on(Sinkhole::bind(args.dns_addr))
+        .with_context(|| format!("bind the DNS sinkhole on {}", args.dns_addr))?;
+
     let blocked = Blocked::default();
     let service = Service::start(
         Store::new(data_dir.join("state.json")),
         SystemClock,
         DryRunEnforcer::default(),
-        blocked,
+        blocked.clone(),
         Mode::DryRun,
     )
     .context("start the service")?;
 
-    let runtime = tokio::runtime::Runtime::new().context("start the async runtime")?;
     runtime.block_on(async {
+        let (stop_dns, dns_stopped) = watch::channel(false);
+        let dns = tokio::spawn(sinkhole.serve(blocked, dns_stopped));
         let listener =
             server::bind(&socket).with_context(|| format!("listen on {}", socket.display()))?;
         let mut terminate = signal(SignalKind::terminate()).context("watch for SIGTERM")?;
@@ -90,6 +102,8 @@ fn serve(args: ServeArgs) -> Result<()> {
             }
         };
         server::run(service, listener, shutdown).await;
+        let _ = stop_dns.send(true);
+        let _ = dns.await;
         let _ = fs::remove_file(&socket);
         Ok(())
     })

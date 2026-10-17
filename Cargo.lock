@@ -633,6 +633,7 @@ dependencies = [
  "nix",
  "orcblock-core",
  "orcblock-ipc",
+ "proptest",
  "serde",
  "serde_json",
  "tempfile",
