@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub const PROTOCOL_VERSION: u32 = 1;
 
 /// The longest line either side accepts, newline included.
-pub const MAX_MESSAGE_LEN: usize = 64 * 1024;
+pub const MAX_MESSAGE_LEN: usize = 1024 * 1024;
 
 /// A client request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
