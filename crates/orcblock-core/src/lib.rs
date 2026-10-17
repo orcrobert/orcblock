@@ -1,0 +1,20 @@
+//! The `OrcBlock` domain model.
+//!
+//! Everything here is pure and synchronous: no I/O, no clocks, no async.
+//! Callers pass in the current time and elapsed durations, which keeps every
+//! rule deterministic and testable. The daemon is the only caller that
+//! persists [`State`] and turns it into enforcement.
+
+#![warn(missing_docs)]
+
+mod blocklist;
+mod domain;
+mod potion;
+mod session;
+mod state;
+
+pub use blocklist::{Blocklist, Entry};
+pub use domain::{Domain, DomainError};
+pub use potion::{Month, MonthError, POTIONS_PER_MONTH, PotionLedger};
+pub use session::{BlockDuration, DurationError, Session};
+pub use state::{CommandError, SessionEnd, State};
