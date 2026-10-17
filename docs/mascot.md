@@ -43,4 +43,4 @@ Prompts for PixelLab:
 
 ## App icon
 
-A 1024 x 1024 PNG: the guarding orc's head, scaled up as crisp pixels, ink on the paper colour `#F4F4F0` with red eyes, inside the macOS rounded-square grid, no text. Then `npm --prefix app run tauri icon icon.png` makes every size.
+The icon is the guarding orc's head from `frames.ts` as crisp pixels, ink on the paper colour `#F4F4F0` with red eyes over a red-tipped rule, inside the macOS rounded-square grid, no text. Its source is `app/src-tauri/icons/source/icon.svg`; when the sprite changes, redraw that SVG from the new guarding frame (or a 1024 x 1024 PNG from PixelLab) and run `npm --prefix app run tauri icon <file> -o <tmp dir>`, then copy over only the files already in `app/src-tauri/icons`.
