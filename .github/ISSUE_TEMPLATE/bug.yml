@@ -1,0 +1,45 @@
+name: Bug report
+description: Something does not work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, including error messages. `log show --predicate 'process == "orcblockd"' --last 10m` shows the helper's log.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: OrcBlock → About, or `orcblock --version`.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip
+      placeholder: macOS 27.2, Apple silicon
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser where the block failed (if relevant)
+      options: [Not relevant, Safari, Chrome, Firefox, Arc, Brave, Edge, Other]

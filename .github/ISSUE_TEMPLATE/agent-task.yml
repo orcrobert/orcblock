@@ -1,0 +1,45 @@
+name: Agent-ready task
+description: A well-scoped task a coding agent can pick up with /feature or /bug.
+labels: [agent-ready]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: One or two sentences on the outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable statements.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Likely files
+      description: Packages or files the change probably touches.
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+    validations:
+      required: true
+  - type: input
+    id: verify
+    attributes:
+      label: Verification command
+      placeholder: make check && cargo test -p orcblock-core
+    validations:
+      required: true
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options: ["S (< 100 lines)", "M (100-300 lines)", "L (needs splitting into slices)"]
+    validations:
+      required: true

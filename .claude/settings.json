@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(make check)", "Bash(make test)", "Bash(make fmt)", "Bash(make lint)", "Bash(make deny)", "Bash(make ui-check)", "Bash(make daemon-dev)", "Bash(make dev)", "Bash(make bundle)",
+      "Bash(cargo build *)", "Bash(cargo check *)", "Bash(cargo test *)", "Bash(cargo clippy *)", "Bash(cargo fmt *)", "Bash(cargo doc *)", "Bash(cargo run -p orcblock-cli *)", "Bash(cargo tree *)", "Bash(cargo deny *)",
+      "Bash(npm run *)", "Bash(npm --prefix app run *)", "Bash(npm ci *)",
+      "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git show *)",
+      "Bash(git add *)", "Bash(git commit *)", "Bash(git switch *)", "Bash(git pull --ff-only *)",
+      "Bash(git push -u origin *)",
+      "Bash(gh pr create *)", "Bash(gh pr view *)", "Bash(gh pr checks *)", "Bash(gh pr list *)", "Bash(gh issue view *)"
+    ],
+    "ask": [
+      "Bash(cargo add *)", "Bash(npm install *)", "Bash(npm i *)",
+      "Bash(sudo *)", "Bash(make install-helper)", "Bash(launchctl *)", "Bash(pfctl *)",
+      "Bash(gh pr merge *)", "Bash(gh pr ready *)"
+    ],
+    "deny": [
+      "Read(./.env)", "Read(./.env.*)", "Read(./data/**)",
+      "Edit(/etc/**)", "Write(/etc/**)", "Edit(/Library/**)", "Write(/Library/**)",
+      "Bash(git push --force *)", "Bash(git push -f *)", "Bash(git reset --hard *)", "Bash(rm -rf *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run.sh session-context" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run.sh guard-git" }] },
+      { "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run.sh guard-files" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run.sh format" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run.sh stop-check", "timeout": 120 }] }
+    ]
+  }
+}

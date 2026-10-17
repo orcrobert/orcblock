@@ -1,0 +1,37 @@
+# Roadmap
+
+What exists and what is next, in order. `/status` reads this file. Big items get a spec under docs/specs before work starts.
+
+## 1. Agentic workflow
+- [x] AGENTS.md, CLAUDE.md, Claude Code settings, hooks (agenthooks crate), subagents and skills
+- [x] CI, nightly advisories, release workflow, Claude bots, dependabot, templates
+- [x] Licence (AGPL-3.0), code of conduct, contributing and security policies, ADRs
+
+## 2. Rust rewrite, macOS (spec 0001)
+- [ ] orcblock-core: domains, blocklist, sessions, potion ledger, state machine
+- [ ] orcblock-ipc: wire protocol and client
+- [ ] orcblockd: store, service, tick loop, socket server, dry-run enforcer, dev mode
+- [ ] orcblockd: DNS sinkhole
+- [ ] orcblockd: macOS enforcer (resolver files, pf anchor, cache flush) and install/uninstall
+- [ ] orcblock CLI
+- [ ] Tauri app: helper setup, sites list with favicons, durations, countdown, potions, themes
+- [ ] Orc mascot: placeholder animated SVGs for sleeping and guarding
+- [ ] Bundle: .app and .dmg with the daemon as a sidecar
+
+## 3. Polish
+- [ ] Final orc art (see docs/mascot.md) and a "drinking" animation when a potion is spent
+- [ ] Menu bar item showing the time left
+- [ ] Notifications when a block starts, has 5 minutes left and ends
+- [ ] Extend a running block (+15 min, +1 h)
+- [ ] Schedules (block every weekday 9:00-12:00)
+
+## 4. Distribution
+- [ ] Developer ID signing and notarization
+- [ ] Homebrew cask (`brew install --cask orcblock`)
+- [ ] Move the helper install to `SMAppService` once the app is signed
+- [ ] Auto-update
+
+## 5. Later
+- [ ] Block apps as well as websites: the daemon watches launches during a block and terminates blocked bundle IDs (NSWorkspace notifications or Endpoint Security). Needs a spec and probably signing.
+- [ ] Network Extension content filter as the enforcement layer once signed (ADR 0002)
+- [ ] Windows and Linux daemons behind the same `Enforcer` trait

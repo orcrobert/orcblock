@@ -1,0 +1,15 @@
+#!/bin/sh
+# Fast subset of make check on staged Rust files: rustfmt and cargo check of the workspace.
+set -eu
+
+files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.rs' | grep -v '/testdata/' || true)
+[ -z "$files" ] && exit 0
+
+unformatted=$(printf '%s\n' "$files" | while IFS= read -r f; do rustfmt --edition 2024 --check "$f" >/dev/null 2>&1 || echo "$f"; done)
+if [ -n "$unformatted" ]; then
+	echo "pre-commit: unformatted files (run make fmt, then stage them again):" >&2
+	printf '%s\n' "$unformatted" | sed 's/^/  /' >&2
+	exit 1
+fi
+
+cargo check --workspace --all-targets --quiet
