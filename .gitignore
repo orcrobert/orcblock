@@ -1,46 +1,17 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-venv/
-env/
-ENV/
+/target/
+/.bin/
+/data/
+/dist/
+node_modules/
+/app/dist/
+/app/.svelte-kit/
+/app/src-tauri/gen/
 .env
-.venv
-
-# IDE
+.env.*
+!.env.example
+.claude/settings.local.json
+.claude/worktrees/
+*.log
+.DS_Store
 .idea/
 .vscode/
-*.swp
-*.swo
-.DS_Store
-
-# Project specific
-websites.json
-
-# Logs
-*.log
-logs/
-
-# System Files
-.DS_Store
-Thumbs.db 
