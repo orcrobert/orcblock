@@ -132,6 +132,11 @@ async fn install_helper(state: Shared<'_>) -> Result<(), AppError> {
             "Dev mode talks to the dev daemon: run `make daemon-dev` in the repository".into(),
         ));
     }
+    if HELPER_SHA256.is_empty() {
+        return Err(fail(
+            "This build has no bundled helper; build the app with `make bundle`".into(),
+        ));
+    }
     let helper = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|dir| dir.join("orcblockd")))
@@ -139,7 +144,7 @@ async fn install_helper(state: Shared<'_>) -> Result<(), AppError> {
         .ok_or_else(|| {
             fail("The helper is missing from the app bundle; reinstall OrcBlock".into())
         })?;
-    let script = install_script(&helper);
+    let script = install_script(&helper, HELPER_SHA256);
     tauri::async_runtime::spawn_blocking(move || {
         Command::new("/usr/bin/osascript")
             .args(["-e", &script])
@@ -166,15 +171,34 @@ async fn install_helper(state: Shared<'_>) -> Result<(), AppError> {
     })
 }
 
-/// The `AppleScript` that runs `<helper> install` as root.
-fn install_script(helper: &std::path::Path) -> String {
-    let path = helper
-        .to_string_lossy()
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"");
+/// SHA-256 of the daemon bundled with this build, or empty without one.
+const HELPER_SHA256: &str = env!("ORCBLOCK_HELPER_SHA256");
+
+/// The `AppleScript` that installs the helper as root. The bundle is
+/// writable by the user, so root first copies the helper into its own
+/// temp dir, checks the copy against `sha256` and runs only that copy:
+/// nothing swapped in before or during the password prompt gets root.
+fn install_script(helper: &std::path::Path, sha256: &str) -> String {
+    let quote = |text: &str| text.replace('\\', "\\\\").replace('"', "\\\"");
+    let (before, after) = install_shell(sha256);
     format!(
-        "do shell script (quoted form of \"{path}\") & \" install\" with prompt \"OrcBlock needs to install its helper to keep blocks in place.\" with administrator privileges"
+        "do shell script \"{}\" & quoted form of \"{}\" & \"{}\" with prompt \"OrcBlock needs to install its helper to keep blocks in place.\" with administrator privileges",
+        quote(before),
+        quote(&helper.to_string_lossy()),
+        quote(&after),
     )
+}
+
+/// The shell that runs as root, split around the single-quoted helper path.
+fn install_shell(sha256: &str) -> (&'static str, String) {
+    let before = "t=$(/usr/bin/mktemp -d) || exit 1; /bin/cp -- ";
+    let after = format!(
+        " \"$t/orcblockd\" || {{ /bin/rm -rf \"$t\"; exit 1; }}; \
+         if [ \"$(/usr/bin/shasum -a 256 \"$t/orcblockd\" | /usr/bin/cut -c1-64)\" != \"{sha256}\" ]; then \
+         /bin/rm -rf \"$t\"; echo \"the helper does not match this copy of OrcBlock\" >&2; exit 1; fi; \
+         \"$t/orcblockd\" install; s=$?; /bin/rm -rf \"$t\"; exit $s"
+    );
+    (before, after)
 }
 
 /// Streams the daemon status to the window: every second during a block,
