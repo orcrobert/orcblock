@@ -30,6 +30,7 @@ nix = { version = "0.31", features = ["time", "user"] }
 proptest = "1.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 tempfile = "3.27"
 thiserror = "2.0"
 tokio = { version = "1.53", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
