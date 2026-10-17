@@ -7,20 +7,17 @@ paths: "app/src/lib/mascot/**"
 Art direction and AI prompts: docs/mascot.md.
 
 ## States
-| State | When | Feel |
+| State | When | Look |
 | --- | --- | --- |
-| `sleeping` | no block running | curled up, slow breathing, drifting "z" |
-| `guarding` | a block is running | standing in the path with a club, gentle sway, occasional blink |
-| `drinking` | right after a potion is spent | drinks, wobbles, falls asleep (plays once, then `sleeping`) |
+| `sleeping` | no block running, Setup | closed, curved eyes |
+| `guarding` | a block is running | open eyes, angled brows, an occasional blink |
 
 ## Files
-- `Orc.svelte` takes `state` and `size` and renders the current art; it is the only component the rest of the UI uses.
-- `art/` holds one asset per state. The built-in placeholders are Svelte components with inline SVG and CSS keyframes (`Sleeping.svelte`, `Guarding.svelte`) coloured by the `--orc-*` tokens in `theme.css`. Final art can be animated SVG, a sprite-sheet PNG (`<state>.png` + frame count in `frames.ts`) or Lottie JSON if an ADR adds the player.
-- Colours in the SVGs use `currentColor` and CSS variables (`--orc-skin`, `--orc-ink`) so the orc follows the theme.
+- `Orc.svelte` takes `state` and `size` and draws the mark as inline SVG on a 24 px grid with `stroke="currentColor"`, so the parent's text colour themes it. It is the only mascot component.
+- Final art (docs/mascot.md) replaces the paths in `Orc.svelte`; keep the 24 px viewBox and a single stroke width.
 
 ## Rules
-- Decorative: wrapper has `aria-hidden="true"`; state changes are announced by text elsewhere.
-- Under `prefers-reduced-motion: reduce`, show the first frame only.
-- Loops are slow (3-6 s) and subtle; nothing flashes more than three times a second.
-- Size budget: each state under 60 KB.
-- New art replaces a file in `art/` with the same name; `Orc.svelte` should not need changes unless the format changes.
+- Decorative: the svg has `aria-hidden="true"`; state changes are announced by text elsewhere.
+- Under `prefers-reduced-motion: reduce`, no motion at all.
+- The blink is the only animation; nothing flashes more than three times a second.
+- It stays a small mark (16-32 px in the UI). No large illustrations, scenes or colour fills.

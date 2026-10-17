@@ -15,11 +15,11 @@ What exists and what is next, in order. `/status` reads this file. Big items get
 - [x] orcblockd: macOS enforcer (resolver files, pf anchor, cache flush) and install/uninstall
 - [x] orcblock CLI
 - [x] Tauri app: helper setup, sites list with favicons, durations, countdown, potions, themes
-- [x] Orc mascot: placeholder animated SVGs for sleeping and guarding
+- [x] Orc mascot: placeholder line mark for sleeping and guarding
 - [ ] Bundle: .app and .dmg with the daemon as a sidecar
 
 ## 3. Polish
-- [ ] Final orc art (see docs/mascot.md) and a "drinking" animation when a potion is spent
+- [ ] Final orc mark and app icon (see docs/mascot.md)
 - [ ] Menu bar item showing the time left
 - [ ] Notifications when a block starts, has 5 minutes left and ends
 - [ ] Extend a running block (+15 min, +1 h)
