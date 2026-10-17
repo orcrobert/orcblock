@@ -435,6 +435,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "orcblock-ipc"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "orcblock-core",
+ "proptest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "portable-atomic"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
