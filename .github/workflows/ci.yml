@@ -1,9 +1,11 @@
 name: ci
 
+# Pull requests only: a pull_request run already tests the merge result,
+# so a push to main would only repeat it. Require branches to be up to date
+# before merging so that result is what lands.
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read

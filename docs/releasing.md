@@ -1,18 +1,13 @@
 # Releasing
 
-A release is a git tag. Pushing `vX.Y.Z` runs `.github/workflows/release.yml`, which builds the app on GitHub and leaves a draft release for you to publish.
+A release is a version bump merged into main. Every push to main runs `.github/workflows/release.yml`; when the version in `Cargo.toml` has no `vX.Y.Z` tag yet, it builds the app on GitHub, tags the merged commit and publishes the release. Merges that leave the version alone are not released.
 
 ## Steps
 
-1. On a branch, set the new version in all four places: `[workspace.package]` in `Cargo.toml`, `app/src-tauri/tauri.conf.json`, `app/package.json` and `app/package-lock.json` (run `npm --prefix app version X.Y.Z --no-git-tag-version` for the two npm files). `make check` fails while they disagree. Merge the PR.
-2. Tag main and push the tag:
-   ```sh
-   git switch main && git pull --ff-only
-   git tag -a vX.Y.Z -m "OrcBlock vX.Y.Z"
-   git push origin vX.Y.Z
-   ```
-3. Wait for the release workflow. A `build` job with read-only access refuses a tag that does not match the version, runs `make check` and builds the universal app with `make bundle-universal`, without caches. A separate `publish` job, which runs no repository code, attests the files and creates a **draft** release with notes from the commits.
-4. Read the draft on GitHub, edit the notes if needed and publish it.
+1. On a branch, set the new version in all four places: `[workspace.package]` in `Cargo.toml`, `app/src-tauri/tauri.conf.json`, `app/package.json` and `app/package-lock.json` (run `npm --prefix app version X.Y.Z --no-git-tag-version` for the two npm files). `make check` fails while they disagree.
+2. Merge the PR.
+3. Wait for the release workflow. A `version` job finds the untagged version. A `build` job with read-only access checks the versions agree, runs `make check` and builds the universal app with `make bundle-universal`, without caches. A separate `publish` job, which runs no repository code, attests the files, creates the tag and publishes the release with notes from the commits.
+4. Edit the notes on GitHub if needed. A version with a suffix, such as `1.0.0-beta.1`, is published as a pre-release. If the workflow failed, fix the cause on a branch and merge, or rerun it from the Actions tab (`workflow_dispatch`, main only).
 
 ## What a release contains
 
@@ -22,9 +17,17 @@ A release is a git tag. Pushing `vX.Y.Z` runs `.github/workflows/release.yml`, w
 | `OrcBlock_X.Y.Z_macos_universal.dmg` | The same file under a versioned name, for links to one version. |
 | `SHA256SUMS` | Checksums of both dmgs. |
 
-Each dmg also has a build provenance attestation: `gh attestation verify OrcBlock.dmg -R orcrobert/orcblock` proves it was built by this repository's release workflow from the tagged commit.
+Each dmg also has a build provenance attestation: `gh attestation verify OrcBlock.dmg -R orcrobert/orcblock` with `--signer-workflow orcrobert/orcblock/.github/workflows/release.yml --source-ref refs/heads/main` proves it was built by this repository's release workflow from main; the attestation names the commit, which is the one the tag points at. The tag itself is a lightweight tag the workflow creates.
 
 The `latest/download` link only follows published releases that are not marked as pre-releases.
+
+## Repository settings
+
+The workflow depends on settings that live on GitHub, not in the repository:
+
+- Branch protection on `main`: require pull requests, the `check` status and branches up to date before merging, with no bypass. CI runs on pull requests only, so this is what makes the tested merge result the one that lands.
+- An environment named `release` with deployment branches limited to `main`. Add a required reviewer there to approve each release by hand before it is published.
+- No tag ruleset that restricts creating `v*` tags: the workflow creates them with its own token. Blocking updates and deletions of `v*` tags is fine.
 
 ## Signing
 
@@ -38,4 +41,4 @@ Only the macOS daemon can enforce a block today. Windows and Linux downloads com
 
 ## If a release goes wrong
 
-Delete the draft release and the tag (`git push origin :refs/tags/vX.Y.Z`), fix the problem on a branch and tag again. Never move a tag that was published.
+A release that failed before publishing left no tag (delete any half-made draft release on GitHub): fix the problem on a branch and merge, and the next push to main releases the same version. A published release is never moved or replaced; bump the version and merge a fix instead. Do not push `v*` tags by hand, since the workflow skips a version that is already tagged.
