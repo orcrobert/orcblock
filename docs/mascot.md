@@ -43,8 +43,6 @@ Prompts for PixelLab:
 
 ## App icon
 
-The icon is the guarding orc's head from `frames.ts` as large crisp pixels with red eyes, on a light paper squircle (`icons/source/icon.svg`) and a dark twin (`icons/source/icon-dark.svg`), no text. `icon.icns` carries the light one.
+The icon is the guarding orc's head from `frames.ts` as large crisp pixels, light ink with red eyes on a dark squircle (`app/src-tauri/icons/source/icon.svg`), no text. It is dark in both system appearances: an icon that follows the appearance needs an Icon Composer `.icon` file compiled by Xcode 26's `actool`, which the build does not require.
 
-Following the system appearance needs an Icon Composer `.icon` file, which the Tauri bundler compiles into `Assets.car` with Xcode 26's `actool`; plain `.icns` has no dark variant. Until Xcode is installed the light icon shows in both modes.
-
-When the sprite changes, redraw both SVGs from the new guarding frame and run `npm --prefix app run tauri icon <svg> -o <tmp dir>`, then copy over only the files already in `app/src-tauri/icons`.
+When the sprite changes, redraw the SVG from the new guarding frame and run `npm --prefix app run tauri icon <svg> -o <tmp dir>`, then copy over only the files already in `app/src-tauri/icons`.
