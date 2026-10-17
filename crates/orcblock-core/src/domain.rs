@@ -17,20 +17,21 @@ const MAX_LABEL_LEN: usize = 63;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Domain(String);
 
-/// Why an input could not be turned into a [`Domain`].
+/// Why an input could not be turned into a [`Domain`]. The messages are
+/// shown to the user as is.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DomainError {
     /// Nothing but whitespace or punctuation was given.
-    #[error("enter a site, like youtube.com")]
+    #[error("Enter a site, like youtube.com")]
     Empty,
     /// The input is an IP address; only names can be blocked.
-    #[error("{0} is an IP address; enter the site's name instead")]
+    #[error("That is an IP address ({0}); enter the site's name instead")]
     IpAddress(String),
     /// The name has a single label, like `localhost`.
-    #[error("{0} is not a full site name; try something like {0}.com")]
+    #[error("That is not a full site name ({0}); try something like {0}.com")]
     SingleLabel(String),
     /// The name breaks DNS syntax rules.
-    #[error("{0} is not a valid site name")]
+    #[error("That is not a valid site name ({0})")]
     Invalid(String),
 }
 

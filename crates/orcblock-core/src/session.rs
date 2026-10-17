@@ -12,14 +12,15 @@ use crate::Domain;
 #[serde(try_from = "u64", into = "u64")]
 pub struct BlockDuration(Duration);
 
-/// A requested block duration outside the allowed range.
+/// A requested block duration outside the allowed range. The messages are
+/// shown to the user as is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum DurationError {
     /// Shorter than [`BlockDuration::MIN`].
-    #[error("a block lasts at least one minute")]
+    #[error("A block lasts at least one minute")]
     TooShort,
     /// Longer than [`BlockDuration::MAX`].
-    #[error("a block lasts at most seven days")]
+    #[error("A block lasts at most seven days")]
     TooLong,
 }
 

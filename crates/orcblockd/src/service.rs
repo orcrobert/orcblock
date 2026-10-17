@@ -239,15 +239,7 @@ fn restart_credit(saved_at: Timestamp, now: Timestamp) -> Duration {
 }
 
 fn refusal(kind: ErrorKind, err: &impl ToString) -> Response {
-    Response::error(kind, capitalize(&err.to_string()))
-}
-
-fn capitalize(message: &str) -> String {
-    let mut chars = message.chars();
-    chars
-        .next()
-        .map(|first| first.to_uppercase().chain(chars).collect())
-        .unwrap_or_default()
+    Response::error(kind, err.to_string())
 }
 
 #[cfg(test)]

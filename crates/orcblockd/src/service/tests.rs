@@ -84,7 +84,7 @@ fn adds_cleaned_sites_and_reports_bad_ones() {
     assert_eq!(kind, ErrorKind::InvalidSite);
     assert_eq!(
         message,
-        "Localhost is not a full site name; try something like localhost.com"
+        "That is not a full site name (localhost); try something like localhost.com"
     );
 
     let (kind, _) = refusal(service.handle(Command::StartBlock { secs: 5 }));
