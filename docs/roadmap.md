@@ -16,7 +16,7 @@ What exists and what is next, in order. `/status` reads this file. Big items get
 - [x] orcblock CLI
 - [x] Tauri app: helper setup, sites list with favicons, durations, countdown, potions, themes
 - [x] Orc mascot: placeholder pixel sprite for sleeping, guarding and drinking
-- [ ] Bundle: .app and .dmg with the daemon as a sidecar
+- [x] Bundle: .app and .dmg with the daemon as a sidecar
 
 ## 3. Polish
 - [ ] Final orc mark and app icon (see docs/mascot.md)
@@ -26,9 +26,8 @@ What exists and what is next, in order. `/status` reads this file. Big items get
 - [ ] Schedules (block every weekday 9:00-12:00)
 
 ## 4. Distribution
-- [ ] Developer ID signing and notarization
+- [x] GitHub releases: tagged, universal, ad hoc signed dmg with checksums and provenance (docs/releasing.md)
 - [ ] Homebrew cask (`brew install --cask orcblock`)
-- [ ] Move the helper install to `SMAppService` once the app is signed
 - [ ] Auto-update
 
 ## 5. Later

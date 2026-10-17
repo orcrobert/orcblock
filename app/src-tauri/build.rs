@@ -26,13 +26,29 @@ fn main() {
 
 /// Bakes the SHA-256 of the bundled daemon into the app. The install runs
 /// only a copy whose hash matches, so a helper swapped inside the
-/// user-writable bundle is never started as root. Empty without a sidecar
-/// (`make sidecar`), which leaves install disabled.
+/// user-writable bundle is never started as root. The sidecar is
+/// `binaries/orcblockd-<target>`, where `ORCBLOCK_HELPER_TARGET` overrides
+/// the build target. Empty without a sidecar (plain dev builds), which
+/// leaves install disabled; with the override set the sidecar must exist.
 fn pin_helper() {
-    let target = std::env::var("TARGET").unwrap_or_default();
+    // A universal build compiles the app once per architecture, but the
+    // bundle ships the fat helper, so `make bundle-universal` names it here.
+    println!("cargo:rerun-if-env-changed=ORCBLOCK_HELPER_TARGET");
+    let pinned_target = std::env::var("ORCBLOCK_HELPER_TARGET").ok();
+    let target = pinned_target
+        .clone()
+        .or_else(|| std::env::var("TARGET").ok())
+        .unwrap_or_default();
     let sidecar = PathBuf::from(format!("binaries/orcblockd-{target}"));
     println!("cargo:rerun-if-changed={}", sidecar.display());
-    let hash = std::fs::read(&sidecar)
+    let bytes = match std::fs::read(&sidecar) {
+        Ok(bytes) => Some(bytes),
+        Err(err) if pinned_target.is_some() => {
+            panic!("ORCBLOCK_HELPER_TARGET names {}: {err}", sidecar.display())
+        }
+        Err(_) => None,
+    };
+    let hash = bytes
         .map(|bytes| {
             Sha256::digest(bytes)
                 .iter()
