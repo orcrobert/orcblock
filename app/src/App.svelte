@@ -44,7 +44,10 @@
       onerror={(text) => (message = text)}
     />
   {:else if view.kind === "setup"}
-    <Setup onerror={(text) => (message = text)} />
+    <Setup
+      onready={(status) => (view = { kind: "ready", status })}
+      onerror={(text) => (message = text)}
+    />
   {:else}
     <StatusBar armed={false} label="CONNECTING" />
   {/if}

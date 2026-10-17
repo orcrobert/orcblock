@@ -1,23 +1,39 @@
 <script lang="ts">
-  import { api, errorMessage } from "../lib/api";
+  import { api, errorMessage, type Status } from "../lib/api";
   import Button from "../lib/components/Button.svelte";
   import StatusBar from "../lib/components/StatusBar.svelte";
   import Orc from "../lib/mascot/Orc.svelte";
+  import { waitFor } from "../lib/wait";
 
-  let { onerror }: { onerror: (message: string) => void } = $props();
+  let {
+    onready,
+    onerror,
+  }: { onready: (status: Status) => void; onerror: (message: string) => void } = $props();
 
-  let installing = $state(false);
+  type Phase = "idle" | "installing" | "starting" | "failed";
+  let phase = $state<Phase>("idle");
 
   async function install() {
-    installing = true;
+    phase = "installing";
     try {
       await api.installHelper();
     } catch (err) {
+      phase = "idle";
       onerror(errorMessage(err));
-    } finally {
-      installing = false;
+      return;
     }
+    phase = "starting";
+    const status = await waitFor(api.status, { attempts: 20, intervalMs: 500 });
+    if (status) onready(status);
+    else phase = "failed";
   }
+
+  const LABELS: Record<Phase, string> = {
+    idle: "INSTALL HELPER",
+    installing: "INSTALLING…",
+    starting: "STARTING HELPER…",
+    failed: "TRY AGAIN",
+  };
 
   const FACTS = [
     "RUNS IN THE BACKGROUND AS A LAUNCHDAEMON",
@@ -32,15 +48,22 @@
     <StatusBar armed={false} label="HELPER MISSING" />
     <div class="copy">
       <p class="micro muted">[ SETUP // STEP 01 ]</p>
-      <h2>Helper<br />required</h2>
+      <div>
+        <h2>Helper<br />required</h2>
+        <p class="micro problem" role="alert">
+          {#if phase === "failed"}
+            INSTALLED BUT NOT STARTED // SEE /var/log/orcblockd.log
+          {/if}
+        </p>
+      </div>
     </div>
     <figure class="orc">
       <Orc pose="sleeping" scale={5} />
       <figcaption class="micro">ORC-01 // ASLEEP</figcaption>
     </figure>
     <footer class="action">
-      <Button disabled={installing} onclick={install}>
-        <span>{installing ? "INSTALLING…" : "INSTALL HELPER"}</span><span>&gt;&gt;&gt;</span>
+      <Button disabled={phase === "installing" || phase === "starting"} onclick={install}>
+        <span>{LABELS[phase]}</span><span>&gt;&gt;&gt;</span>
       </Button>
     </footer>
   </section>
@@ -79,6 +102,11 @@
   }
   p {
     margin: 0;
+  }
+  .problem {
+    min-height: 1lh;
+    margin-top: 8px;
+    color: var(--red);
   }
   h2 {
     margin: 0;
