@@ -1,16 +1,19 @@
 use std::fs;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
 use orcblock_ipc::Mode;
 use orcblockd::dns::{self, Sinkhole};
-use orcblockd::{Blocked, DryRunEnforcer, Service, Store, SystemClock, server};
+use orcblockd::{
+    Blocked, DryRunEnforcer, Enforcer, Layout, MacEnforcer, Service, Store, SystemClock,
+    SystemRunner, install, server,
+};
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::watch;
-use tracing::error;
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
@@ -27,6 +30,10 @@ struct Cli {
 enum Cmd {
     /// Run the daemon in the foreground (launchd runs this).
     Serve(ServeArgs),
+    /// Install this binary as a launchd daemon and start it (needs root).
+    Install,
+    /// Stop and remove the launchd daemon (needs root; refused during a block).
+    Uninstall,
 }
 
 #[derive(Debug, Args)]
@@ -35,11 +42,11 @@ struct ServeArgs {
     /// state and the socket in --data-dir, run without root.
     #[arg(long)]
     dev: bool,
-    /// Where the state file lives [default with --dev: ./data].
-    #[arg(long)]
-    data_dir: Option<PathBuf>,
-    /// The socket path [default with --dev: <data-dir>/orcblockd.sock].
-    #[arg(long)]
+    /// Where the state file lives with --dev.
+    #[arg(long, default_value = "data", requires = "dev")]
+    data_dir: PathBuf,
+    /// The socket path with --dev [default: <data-dir>/orcblockd.sock].
+    #[arg(long, requires = "dev")]
     socket: Option<PathBuf>,
     /// Where the DNS sinkhole listens; resolver files point here.
     #[arg(long, default_value_t = dns::DEFAULT_ADDR)]
@@ -53,47 +60,79 @@ fn main() -> ExitCode {
         )
         .with_writer(std::io::stderr)
         .init();
-    match Cli::parse().command {
-        Cmd::Serve(args) => match serve(args) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(err) => {
-                error!("{err:#}");
-                ExitCode::FAILURE
-            }
-        },
+    let result = match Cli::parse().command {
+        Cmd::Serve(args) => serve(args),
+        Cmd::Install => run_install(),
+        Cmd::Uninstall => run_uninstall(),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            error!("{err:#}");
+            ExitCode::FAILURE
+        }
     }
 }
 
-fn serve(args: ServeArgs) -> Result<()> {
-    if !args.dev {
-        bail!("live enforcement is not built yet; run `orcblockd serve --dev`");
+fn require_root() -> Result<()> {
+    if !nix::unistd::geteuid().is_root() {
+        bail!("this needs root; run it with sudo");
     }
-    let data_dir = args.data_dir.unwrap_or_else(|| PathBuf::from("data"));
-    fs::create_dir_all(&data_dir).with_context(|| format!("create {}", data_dir.display()))?;
-    let socket = args
-        .socket
-        .unwrap_or_else(|| data_dir.join("orcblockd.sock"));
+    Ok(())
+}
 
+fn serve(args: ServeArgs) -> Result<()> {
+    if args.dev {
+        fs::create_dir_all(&args.data_dir)
+            .with_context(|| format!("create {}", args.data_dir.display()))?;
+        let socket = args
+            .socket
+            .unwrap_or_else(|| args.data_dir.join("orcblockd.sock"));
+        let store = Store::new(args.data_dir.join("state.json"));
+        run_daemon(
+            store,
+            DryRunEnforcer::default(),
+            Mode::DryRun,
+            &socket,
+            args.dns_addr,
+        )
+    } else {
+        require_root()?;
+        let layout = Layout::system();
+        fs::create_dir_all(layout.data_dir()).context("create the data directory")?;
+        let enforcer = MacEnforcer::new(layout.clone(), SystemRunner, args.dns_addr.port());
+        run_daemon(
+            Store::new(layout.state_file()),
+            enforcer,
+            Mode::Live,
+            &layout.socket(),
+            args.dns_addr,
+        )
+    }
+}
+
+fn run_daemon<E: Enforcer + 'static>(
+    store: Store,
+    enforcer: E,
+    mode: Mode,
+    socket: &Path,
+    dns_addr: SocketAddr,
+) -> Result<()> {
     let runtime = tokio::runtime::Runtime::new().context("start the async runtime")?;
     let sinkhole = runtime
-        .block_on(Sinkhole::bind(args.dns_addr))
-        .with_context(|| format!("bind the DNS sinkhole on {}", args.dns_addr))?;
+        .block_on(Sinkhole::bind(dns_addr))
+        .with_context(|| format!("bind the DNS sinkhole on {dns_addr}"))?;
 
+    // Enforce any running block before accepting requests.
     let blocked = Blocked::default();
-    let service = Service::start(
-        Store::new(data_dir.join("state.json")),
-        SystemClock,
-        DryRunEnforcer::default(),
-        blocked.clone(),
-        Mode::DryRun,
-    )
-    .context("start the service")?;
+    let service = Service::start(store, SystemClock, enforcer, blocked.clone(), mode)
+        .context("start the service")?;
 
     runtime.block_on(async {
         let (stop_dns, dns_stopped) = watch::channel(false);
         let dns = tokio::spawn(sinkhole.serve(blocked, dns_stopped));
         let listener =
-            server::bind(&socket).with_context(|| format!("listen on {}", socket.display()))?;
+            server::bind(socket).with_context(|| format!("listen on {}", socket.display()))?;
         let mut terminate = signal(SignalKind::terminate()).context("watch for SIGTERM")?;
         let shutdown = async move {
             tokio::select! {
@@ -104,7 +143,27 @@ fn serve(args: ServeArgs) -> Result<()> {
         server::run(service, listener, shutdown).await;
         let _ = stop_dns.send(true);
         let _ = dns.await;
-        let _ = fs::remove_file(&socket);
+        let _ = fs::remove_file(socket);
         Ok(())
     })
+}
+
+fn run_install() -> Result<()> {
+    require_root()?;
+    let exe = std::env::current_exe().context("find this binary")?;
+    install::install(&Layout::system(), &SystemRunner, &exe)?;
+    info!("installed and started {}", orcblockd::LABEL);
+    Ok(())
+}
+
+fn run_uninstall() -> Result<()> {
+    require_root()?;
+    let layout = Layout::system();
+    let mut enforcer = MacEnforcer::new(layout.clone(), SystemRunner, dns::DEFAULT_ADDR.port());
+    install::uninstall(&layout, &SystemRunner, &mut enforcer)?;
+    info!(
+        "uninstalled; the state file stays in {}",
+        layout.data_dir().display()
+    );
+    Ok(())
 }

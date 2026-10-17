@@ -5,6 +5,14 @@ use std::path::PathBuf;
 use orcblock_core::Domain;
 use tracing::info;
 
+mod mac;
+mod pf;
+mod resolver;
+pub(crate) mod runner;
+
+pub use mac::MacEnforcer;
+pub use runner::{CommandRunner, Output, SystemRunner};
+
 /// Turns the set of blocked domains into system configuration.
 ///
 /// Implementations are idempotent: calling `apply` twice with the same set

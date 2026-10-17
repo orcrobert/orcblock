@@ -1,11 +1,12 @@
-use std::fs::{self, File, OpenOptions, Permissions};
-use std::io::{self, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::Timestamp;
 use orcblock_core::State;
 use serde::{Deserialize, Serialize};
+
+use crate::fsutil;
 
 /// Persists [`State`] as JSON in one file, replaced atomically.
 #[derive(Debug, Clone)]
@@ -97,52 +98,26 @@ impl Store {
     /// same directory, synced, then renamed over the old one, so a crash
     /// leaves either the old state or the new one. The file is mode 0644.
     pub fn save(&self, state: &State, saved_at: Timestamp) -> Result<(), StoreError> {
-        let tmp = self.sibling("tmp");
-        let write_err = |path: &Path| {
-            let path = path.to_path_buf();
-            move |source| StoreError::Write { path, source }
+        let write_err = |source| StoreError::Write {
+            path: self.path.clone(),
+            source,
         };
         let mut json = serde_json::to_vec_pretty(&SavedRef { saved_at, state })
             .map_err(io::Error::other)
-            .map_err(write_err(&tmp))?;
+            .map_err(write_err)?;
         json.push(b'\n');
-
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o644)
-            .open(&tmp)
-            .map_err(write_err(&tmp))?;
-        file.set_permissions(Permissions::from_mode(0o644))
-            .and_then(|()| file.write_all(&json))
-            .and_then(|()| file.sync_all())
-            .map_err(write_err(&tmp))?;
-        fs::rename(&tmp, &self.path).map_err(write_err(&self.path))?;
-        if let Some(dir) = self.path.parent() {
-            File::open(dir)
-                .and_then(|dir| dir.sync_all())
-                .map_err(write_err(dir))?;
-        }
-        Ok(())
+        fsutil::write_atomic(&self.path, &json, 0o644).map_err(write_err)
     }
 
     /// Moves an unreadable state file aside so the daemon can start fresh,
     /// and returns where it went.
     pub fn quarantine(&self) -> Result<PathBuf, StoreError> {
-        let aside = self.sibling("corrupt");
+        let aside = fsutil::sibling(&self.path, "corrupt");
         fs::rename(&self.path, &aside).map_err(|source| StoreError::Write {
             path: aside.clone(),
             source,
         })?;
         Ok(aside)
-    }
-
-    fn sibling(&self, suffix: &str) -> PathBuf {
-        let mut name = self.path.file_name().unwrap_or_default().to_os_string();
-        name.push(".");
-        name.push(suffix);
-        self.path.with_file_name(name)
     }
 }
 
