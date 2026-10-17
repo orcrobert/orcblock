@@ -11,12 +11,12 @@ description: Exact recipe to run the daemon in dev mode, drive it with the CLI, 
    - `... start 1m`, then `... remove youtube.com` must fail with the orc's message
    - `... potion` ends the block and shows potions left
    - `dig @127.0.0.1 -p 53535 youtube.com` answers `0.0.0.0` while blocked
-4. Stop it: `pkill -f "orcblockd serve --dev"`. `./data/` is gitignored; move it aside to start fresh.
+4. Stop it with Ctrl-C (or stop the background task); it saves state on shutdown. `./data/` is gitignored; move it aside to start fresh.
 
 ## App
 1. With the dev daemon running: `make dev`. It sets `ORCBLOCK_SOCKET=$PWD/data/orcblockd.sock` and runs `npm --prefix app run tauri dev`. The first build compiles Tauri (~2 min).
 2. The window shows the sites list, theme switch in the top bar, potions as small flasks. Check light, dark and system.
-3. Without a daemon the app shows the "Install helper" screen; in dev that button prints the command instead of running it.
+3. Without a daemon the app shows the "Install helper" screen; in dev that button refuses and points at `make daemon-dev`.
 
 ## Real install (changes the system; only when the user asks)
 `make install-helper` builds release binaries and runs `sudo target/release/orcblockd install`, which copies itself to `/Library/PrivilegedHelperTools/com.orcrobert.orcblockd`, writes `/Library/LaunchDaemons/com.orcrobert.orcblockd.plist` and bootstraps it. Undo with `sudo /Library/PrivilegedHelperTools/com.orcrobert.orcblockd uninstall` (refused while a block is active).

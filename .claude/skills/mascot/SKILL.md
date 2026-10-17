@@ -15,7 +15,7 @@ Art direction and AI prompts: docs/mascot.md.
 
 ## Files
 - `Orc.svelte` takes `state` and `size` and renders the current art; it is the only component the rest of the UI uses.
-- `art/` holds one asset per state. The built-in placeholders are inline SVGs with CSS keyframes (`sleeping.svg`, `guarding.svg`). Final art can be animated SVG, a sprite-sheet PNG (`<state>.png` + frame count in `frames.ts`) or Lottie JSON if an ADR adds the player.
+- `art/` holds one asset per state. The built-in placeholders are Svelte components with inline SVG and CSS keyframes (`Sleeping.svelte`, `Guarding.svelte`) coloured by the `--orc-*` tokens in `theme.css`. Final art can be animated SVG, a sprite-sheet PNG (`<state>.png` + frame count in `frames.ts`) or Lottie JSON if an ADR adds the player.
 - Colours in the SVGs use `currentColor` and CSS variables (`--orc-skin`, `--orc-ink`) so the orc follows the theme.
 
 ## Rules

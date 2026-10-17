@@ -9,7 +9,7 @@ npm ci --prefix app
 make check
 ```
 
-You need macOS, Rust (rustup picks the pinned toolchain from `rust-toolchain.toml`), Node 22+ and the Xcode command line tools.
+You need macOS, Rust (rustup picks the pinned toolchain from `rust-toolchain.toml`), Node 25 and the Xcode command line tools.
 
 ## Running it
 

@@ -19,7 +19,7 @@
 | `orcblock-ipc` | lib | The wire protocol: versioned `Request`/`Response` as newline-delimited JSON, `Status` snapshot, and a blocking `Client`. |
 | `orcblockd` | lib + bin | The daemon: socket server, state store, tick loop, enforcement layers, DNS sinkhole, install and uninstall. |
 | `orcblock-cli` | bin | `orcblock`: status, add, remove, start, potion from the terminal. |
-| `orcblock-app` | bin (Tauri) | The desktop app's Rust side: commands for the UI, the daemon connection, favicons, tray, helper install. |
+| `orcblock-app` | bin (Tauri) | The desktop app's Rust side: commands for the UI, the daemon connection, favicons, helper install. |
 | `agenthooks` | bin | Claude Code hooks for this repo. |
 
 Dependencies point one way: `core ← ipc ← {daemon, cli, app}`. Core knows nothing about JSON framing, sockets or Tauri.
@@ -41,12 +41,12 @@ See ADR 0002 and the enforcement skill. In short: marked `/etc/resolver/<domain>
 
 ## Wire protocol (orcblock-ipc)
 
-One JSON object per line in each direction, one request per connection or many in sequence. Every request carries `"v": PROTOCOL_VERSION`; the daemon answers a newer or older major version with `Response::Error { kind: "version", .. }` so the app can ask the user to update the helper. Requests: `status`, `add_site`, `remove_site`, `start_block`, `drink_potion`. Every successful response carries a full `Status` (blocklist, session with `remaining_secs` and `ends_at`, potions left, daemon version), so clients never need a second round trip.
+One JSON object per line in each direction (`{"v":1,"cmd":"add_site","site":"youtube.com"}`, answered by `{"result":"ok","status":{...}}` or `{"result":"error","kind":...,"message":...}`), one request per connection or many in sequence. Every request carries `"v": PROTOCOL_VERSION`; the daemon answers a newer or older major version with `Response::Error { kind: "version", .. }` so the app can ask the user to update the helper. Requests: `status`, `add_site`, `remove_site`, `start_block`, `drink_potion`. Every successful response carries a full `Status` (blocklist, session with `remaining_secs` and `ends_at`, potions left, daemon version), so clients never need a second round trip.
 
 ## App (app/)
 
 - `app/src-tauri`: Tauri commands mirror the requests and call the blocking IPC client inside `spawn_blocking`. A background task polls status every 2 s (1 s while a block runs) and emits `status` events. Favicons are fetched once per domain (`https://<domain>/apple-touch-icon.png`, then `/favicon.ico`), checked by magic bytes, capped at 256 KB, cached in the app cache dir and returned as data URLs. If the daemon socket is missing, the UI shows the Setup screen, whose button runs the bundled `orcblockd install` through an admin prompt.
-- `app/src`: Svelte 5 UI. Material 3 tokens in `theme.css`, theme stored in `localStorage` (`system` by default). The orc mascot in `lib/mascot`.
+- `app/src`: Svelte 5 UI. Material 3 tokens in `theme.css`, theme stored in `localStorage` (`system` by default). The orc mascot in `lib/mascot`: `Orc.svelte` picks an art component from `lib/mascot/art` by state.
 
 ## Files on a user's Mac
 

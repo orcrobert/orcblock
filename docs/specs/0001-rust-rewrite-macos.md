@@ -16,21 +16,21 @@ OrcBlock is a Python script that edits `/etc/hosts` while it runs in a terminal.
 8. The `orcblock` CLI offers `status`, `add`, `remove`, `start <duration>` and `potion` against the same daemon.
 
 ## Acceptance criteria
-- [ ] `Domain::parse` cleans scheme, credentials, port, path, query, fragment, trailing dot, case and a leading `www.`, converts IDNs to punycode, rejects IPs, single labels and invalid names; `Display` shows the Unicode form. Property-tested.
-- [ ] Adding a duplicate or a subdomain of a listed domain fails with `CommandError::AlreadyBlocked`; adding a parent domain replaces its listed subdomains.
-- [ ] `start` fails on an empty list, an active session, or a duration outside 1 min..=7 days.
-- [ ] During a session, `remove` of a domain in the session fails with `CommandError::Locked`; `add` succeeds and the domain joins the session.
-- [ ] `advance(elapsed)` ends the session exactly when remaining reaches zero; time never goes negative.
-- [ ] Five potions per calendar month; drinking ends the session and decrements atomically; drinking without a session or without potions fails; a new month resets; an earlier month does not.
-- [ ] The wire protocol round-trips every request and response; version mismatches yield a `version` error.
-- [ ] The daemon persists state atomically, restores an active session at start and enforces it before serving requests, credits restart gaps within the clamp and never credits a negative gap.
-- [ ] The daemon's tick loop ends the session at zero and clears enforcement; enforcement is re-applied when verification finds drift.
-- [ ] The DNS sinkhole answers A/AAAA for blocked names and their subdomains with 0.0.0.0/::, NXDOMAIN for `use-application-dns.net` and Private Relay hosts during a block, REFUSED for names it does not own, and never panics on malformed packets (property-tested).
-- [ ] `MacEnforcer` writes marked resolver files atomically, removes only marked files, loads the pf anchor, flushes caches; verified with a fake command runner and a temp root.
-- [ ] `orcblockd install` and `uninstall` produce the right plist and file modes (temp root in tests); uninstall is refused during a block.
-- [ ] The CLI drives a dev daemon end to end.
+- [x] `Domain::parse` cleans scheme, credentials, port, path, query, fragment, trailing dot, case and a leading `www.`, converts IDNs to punycode, rejects IPs, single labels and invalid names; `Display` shows the Unicode form. Property-tested.
+- [x] Adding a duplicate or a subdomain of a listed domain fails with `CommandError::AlreadyListed`; adding a parent domain replaces its listed subdomains.
+- [x] `start` fails on an empty list, an active session, or a duration outside 1 min..=7 days.
+- [x] During a session, `remove` of a domain in the session fails with `CommandError::Locked`; `add` succeeds and the domain joins the session.
+- [x] `advance(elapsed)` ends the session exactly when remaining reaches zero; time never goes negative.
+- [x] Five potions per calendar month; drinking ends the session and decrements atomically; drinking without a session or without potions fails; a new month resets; an earlier month does not.
+- [x] The wire protocol round-trips every request and response; version mismatches yield a `version` error.
+- [x] The daemon persists state atomically, restores an active session at start and enforces it before serving requests, credits restart gaps within the clamp and never credits a negative gap.
+- [x] The daemon's tick loop ends the session at zero and clears enforcement; enforcement is re-applied when verification finds drift.
+- [x] The DNS sinkhole answers A/AAAA for blocked names and their subdomains with 0.0.0.0/::, NXDOMAIN for `use-application-dns.net` and Private Relay hosts during a block, REFUSED for names it does not own, and never panics on malformed packets (property-tested).
+- [x] `MacEnforcer` writes marked resolver files atomically, removes only marked files, loads the pf anchor, flushes caches; verified with a fake command runner and a temp root.
+- [x] `orcblockd install` and `uninstall` produce the right plist and file modes (temp root in tests); uninstall is refused during a block.
+- [x] The CLI drives a dev daemon end to end.
 - [ ] The app shows Setup without a daemon, Home idle and Home blocking with live status, favicons with monogram fallback, potions, the confirm dialog, and all three themes.
-- [ ] `make bundle` produces `OrcBlock.app` with `orcblockd` inside.
+- [x] `make bundle` produces `OrcBlock.app` with `orcblockd` inside.
 
 ## Design
 See docs/architecture.md and ADRs 0002 and 0004. Crates: orcblock-core, orcblock-ipc, orcblockd, orcblock-cli, orcblock-app.

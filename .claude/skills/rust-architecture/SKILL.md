@@ -16,12 +16,12 @@ If a function needs both a decision and I/O, split it: the decision is a pure fu
 
 ## The state machine
 - `orcblock_core::State` owns the blocklist, the active `Session` and the `PotionLedger`. Every change is a method that takes the inputs it needs (including `now`) and returns `Result<_, CommandError>`; it never half-applies: validate first, then mutate.
-- The daemon's `Service` holds `State` behind one `tokio::sync::Mutex`, calls a method, persists, then reconciles enforcement. Persist before acknowledging the request.
+- The daemon's `Service` sits behind one `std::sync::Mutex`, locked only inside `spawn_blocking` because enforcement runs programs; a command runs on a copy of `State`, which is persisted, then adopted, then enforcement is reconciled. Persist before acknowledging the request.
 - New rules get a `CommandError` variant whose message the UI can show as is.
 
 ## Types
 - Newtypes for anything with rules: `Domain`, `Minutes`. Constructors validate (`Domain::parse`), fields stay private, `Display` gives the user-facing form.
-- Enums over booleans and strings. Wire enums are `#[non_exhaustive]` and `#[serde(tag = "type", rename_all = "snake_case")]`.
+- Enums over booleans and strings. Wire enums are internally tagged and `snake_case`: requests by `cmd`, responses by `result`, events by `type`.
 - Derive `Debug, Clone, PartialEq, Eq` where it makes sense; `Copy` for small value types; `Serialize, Deserialize` only on types that cross a boundary.
 
 ## Errors
