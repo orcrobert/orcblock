@@ -1,0 +1,29 @@
+#!/bin/sh
+# Enforces Conventional Commits headers: type(scope): summary
+set -eu
+
+header=$(sed -n '/^[^#]/{p;q;}' "$1")
+
+case "$header" in
+	"Merge "* | "Revert \""* | "fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
+esac
+
+types='feat|fix|perf|refactor|test|docs|build|ci|chore|revert'
+if ! printf '%s\n' "$header" | grep -Eq "^($types)(\([a-z0-9][a-z0-9-]*\))?!?: [^A-Z].*[^.]$"; then
+	cat >&2 <<MSG
+commit-msg: header is not a Conventional Commit:
+  $header
+
+Use: type(scope): summary
+  types:  feat fix perf refactor test docs build ci chore revert
+  scope:  optional, e.g. core, daemon, app, ui, agents, docs
+  summary: imperative, lowercase first word, no trailing period
+Example: feat(daemon): restore resolver files after tampering
+MSG
+	exit 1
+fi
+
+if [ "${#header}" -gt 72 ]; then
+	echo "commit-msg: header is ${#header} characters; keep it at 72 or fewer." >&2
+	exit 1
+fi
