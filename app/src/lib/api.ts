@@ -34,7 +34,10 @@ export interface Status {
 }
 
 export interface AppError {
-  /** `unavailable` when the helper is not running, else the daemon's error kind. */
+  /**
+   * `unavailable` when the helper is not running, `helper_outdated` when it
+   * speaks an older protocol, else the daemon's error kind.
+   */
   kind: string;
   message: string;
 }

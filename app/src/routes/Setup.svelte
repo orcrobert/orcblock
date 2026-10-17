@@ -6,9 +6,15 @@
   import { waitFor } from "../lib/wait";
 
   let {
+    outdated = false,
     onready,
     onerror,
-  }: { onready: (status: Status) => void; onerror: (message: string) => void } = $props();
+  }: {
+    /** The installed helper is older than this app and must be replaced. */
+    outdated?: boolean;
+    onready: (status: Status) => void;
+    onerror: (message: string) => void;
+  } = $props();
 
   type Phase = "idle" | "installing" | "starting" | "failed";
   let phase = $state<Phase>("idle");
@@ -28,12 +34,12 @@
     else phase = "failed";
   }
 
-  const LABELS: Record<Phase, string> = {
-    idle: "INSTALL HELPER",
+  const LABELS: Record<Phase, string> = $derived({
+    idle: outdated ? "UPDATE HELPER" : "INSTALL HELPER",
     installing: "INSTALLING…",
     starting: "STARTING HELPER…",
     failed: "TRY AGAIN",
-  };
+  });
 
   const FACTS = [
     "RUNS IN THE BACKGROUND AS A LAUNCHDAEMON",
@@ -45,11 +51,11 @@
 
 <div class="screen">
   <section class="control">
-    <StatusBar armed={false} label="HELPER MISSING" />
+    <StatusBar armed={false} label={outdated ? "HELPER OUTDATED" : "HELPER MISSING"} />
     <div class="copy">
       <p class="micro muted">[ SETUP // STEP 01 ]</p>
       <div>
-        <h2>Helper<br />required</h2>
+        <h2>Helper<br />{outdated ? "outdated" : "required"}</h2>
         <p class="micro problem" role="alert">
           {#if phase === "failed"}
             INSTALLED BUT NOT STARTED // SEE /var/log/orcblockd.log

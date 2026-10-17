@@ -10,6 +10,7 @@ use std::thread;
 use std::time::Duration;
 
 use orcblock_core::{BlockDuration, Domain};
+use orcblock_ipc::codec::CodecError;
 use orcblock_ipc::{Client, ClientError, DEFAULT_SOCKET, ErrorKind, Status};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -19,8 +20,9 @@ use crate::favicon::Favicons;
 /// Why a command failed, as the UI receives it.
 #[derive(Debug, Clone, Serialize)]
 struct AppError {
-    /// `unavailable` when the helper is not running, otherwise the daemon's
-    /// error kind in snake case.
+    /// `unavailable` when the helper is not running, `helper_outdated` when
+    /// it speaks an older protocol, otherwise the daemon's error kind in
+    /// snake case.
     kind: String,
     message: String,
 }
@@ -29,6 +31,11 @@ impl From<ClientError> for AppError {
     fn from(err: ClientError) -> Self {
         let kind = match &err {
             ClientError::Unavailable(_) => "unavailable".to_owned(),
+            ClientError::Refused {
+                kind: ErrorKind::Version,
+                ..
+            }
+            | ClientError::Codec(CodecError::Json(_)) => "helper_outdated".to_owned(),
             ClientError::Refused { kind, .. } => kind_name(*kind),
             _ => "internal".to_owned(),
         };

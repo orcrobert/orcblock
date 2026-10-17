@@ -7,14 +7,15 @@
   import Home from "./routes/Home.svelte";
   import Setup from "./routes/Setup.svelte";
 
-  type View = { kind: "loading" } | { kind: "setup" } | { kind: "ready"; status: Status };
+  type View =
+    { kind: "loading" } | { kind: "setup"; outdated: boolean } | { kind: "ready"; status: Status };
 
   let view = $state<View>({ kind: "loading" });
   let message = $state("");
 
   function showError(error: unknown) {
-    if (isAppError(error) && error.kind === "unavailable") {
-      view = { kind: "setup" };
+    if (isAppError(error) && (error.kind === "unavailable" || error.kind === "helper_outdated")) {
+      view = { kind: "setup", outdated: error.kind === "helper_outdated" };
     } else if (isAppError(error)) {
       message = error.message;
     } else {
@@ -45,6 +46,7 @@
     />
   {:else if view.kind === "setup"}
     <Setup
+      outdated={view.outdated}
       onready={(status) => (view = { kind: "ready", status })}
       onerror={(text) => (message = text)}
     />
