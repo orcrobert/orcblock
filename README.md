@@ -1,4 +1,4 @@
-# OrcBlock
+# <img src="app/src-tauri/icons/128x128@2x.png" alt="" width="48" height="48" align="center"> OrcBlock
 
 A website blocker for macOS that you can't talk your way out of. Pick the sites, pick a duration and an orc stands guard until the time is up. Closing the app, quitting it or rebooting does not end the block. The only way out early is a sleep potion, and you get five a month.
 
