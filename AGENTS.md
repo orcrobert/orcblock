@@ -10,7 +10,7 @@ Read this file before any task. Details live in docs/; open them only when relev
 - `make dev`: the Tauri app with hot reload, pointed at the dev daemon (`ORCBLOCK_SOCKET=./data/orcblockd.sock`). Start `make daemon-dev` first.
 - `cargo run -p orcblock-cli -- status`: talk to a daemon from the terminal. Add `--socket ./data/orcblockd.sock` for the dev daemon.
 - `make bundle`: build `OrcBlock.app` and the dmg into target/release/bundle.
-- `make bundle-universal`: the release build: one ad hoc signed app for Apple Silicon and Intel and `OrcBlock.dmg` in target/universal-apple-darwin/release/bundle. Releases are tags; see docs/releasing.md.
+- `make bundle-universal`: the release build: one ad hoc signed app for Apple Silicon and Intel and `OrcBlock.dmg` in target/universal-apple-darwin/release/bundle. Merging a version bump into main releases it; see docs/releasing.md.
 - `make install-helper`: install the freshly built daemon as the real LaunchDaemon (asks for sudo; changes the system). Only when the user asks.
 
 ## Map
