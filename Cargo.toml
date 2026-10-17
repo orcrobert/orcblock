@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "app/src-tauri",
     "crates/orcblock-core",
     "crates/orcblock-cli",
     "crates/orcblock-ipc",
@@ -21,6 +22,7 @@ orcblock-core = { path = "crates/orcblock-core" }
 orcblock-ipc = { path = "crates/orcblock-ipc" }
 
 anyhow = "1.0"
+base64 = "0.23"
 clap = { version = "4.6", features = ["derive", "env"] }
 idna = "1.1"
 jiff = { version = "0.2.38", features = ["serde"] }
@@ -33,6 +35,9 @@ thiserror = "2.0"
 tokio = { version = "1.53", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tauri = { version = "2.12", features = [] }
+tauri-build = { version = "2.7", features = [] }
+ureq = "3.4"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

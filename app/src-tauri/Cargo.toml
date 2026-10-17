@@ -1,0 +1,37 @@
+[package]
+name = "orcblock-app"
+description = "The OrcBlock desktop app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "orcblock_app"
+
+[[bin]]
+name = "orcblock-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+base64.workspace = true
+orcblock-core.workspace = true
+orcblock-ipc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+ureq.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

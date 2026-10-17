@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5E8247"/>
+      <stop offset="1" stop-color="#3C5A2B"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <!-- ears -->
+  <path d="M250 470 L150 380 L300 420 Z" fill="#9DBF7A"/>
+  <path d="M774 470 L874 380 L724 420 Z" fill="#9DBF7A"/>
+  <!-- head -->
+  <path d="M260 430 Q260 250 512 250 Q764 250 764 430 L764 600 Q764 800 512 820 Q260 800 260 600 Z" fill="#B5D38F"/>
+  <!-- brow -->
+  <path d="M330 450 Q420 400 490 460" stroke="#2B3A20" stroke-width="34" stroke-linecap="round" fill="none"/>
+  <path d="M694 450 Q604 400 534 460" stroke="#2B3A20" stroke-width="34" stroke-linecap="round" fill="none"/>
+  <!-- eyes -->
+  <circle cx="420" cy="510" r="30" fill="#2B3A20"/>
+  <circle cx="604" cy="510" r="30" fill="#2B3A20"/>
+  <!-- nose -->
+  <path d="M480 590 Q512 620 544 590" stroke="#6E8F52" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <!-- mouth and tusks -->
+  <path d="M390 690 Q512 740 634 690" stroke="#2B3A20" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <path d="M420 700 L405 610 L455 690 Z" fill="#F4EFD8"/>
+  <path d="M604 700 L619 610 L569 690 Z" fill="#F4EFD8"/>
+</svg>
