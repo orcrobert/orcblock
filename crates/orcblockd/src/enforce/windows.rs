@@ -38,10 +38,12 @@ pub(crate) const FIREWALL_RULES: [&str; 4] = [
 ];
 
 /// Prints one tab-separated line per NRPT rule commented
-/// `managed by orcblockd` (`nrpt  name  namespaces  servers`) and per firewall rule in the group
-/// (`fw  display name  enabled  action  direction`).
+/// `managed by orcblockd` (`nrpt  name  namespaces  servers`) and per
+/// firewall rule in the group (`fw  display name  enabled  action
+/// direction`).
 pub(crate) const STATUS_SCRIPT: &str = r#"
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 foreach ($rule in @(Get-DnsClientNrptRule)) {
     if ($rule.Comment -eq 'managed by orcblockd') {
         "nrpt`t$($rule.Name)`t$($rule.Namespace -join ',')`t$($rule.NameServers -join ',')"
@@ -52,38 +54,49 @@ foreach ($rule in @(Get-NetFirewallRule -Group 'orcblockd' -ErrorAction Silently
 }
 "#;
 
-/// Carries out the operations on stdin, one per line, in order.
+/// Carries out the operations on stdin, one per line, in order. One that
+/// fails does not stop the rest; the failures are reported at the end.
 pub(crate) const APPLY_SCRIPT: &str = r#"
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 $ips = @()
+$failed = @()
 foreach ($line in @($input)) {
     $op, $arg = "$line".Trim() -split ' ', 2
-    switch -CaseSensitive ($op) {
-        'nrpt-remove' {
-            if ($arg -cnotmatch '^\{[0-9A-Fa-f-]{36}\}$') { throw "not an NRPT rule name: $arg" }
-            Remove-DnsClientNrptRule -Name $arg -Force
-        }
-        'nrpt-add' {
-            if ($arg -cnotmatch '^[a-z0-9-]+(\.[a-z0-9-]+)+$') { throw "not a domain: $arg" }
-            Add-DnsClientNrptRule -Namespace ".$arg", $arg -NameServers '127.0.0.1' -Comment 'managed by orcblockd' | Out-Null
-        }
-        'fw-clear' {
-            Remove-NetFirewallRule -Group 'orcblockd' -ErrorAction SilentlyContinue
-        }
-        'fw-ip' {
-            $ips += [System.Net.IPAddress]::Parse($arg).ToString()
-        }
-        'fw-add' {
-            foreach ($protocol in 'TCP', 'UDP') {
-                New-NetFirewallRule -DisplayName "orcblockd: DNS over TLS ($protocol)" -Group 'orcblockd' -Direction Outbound -Action Block -Protocol $protocol -RemotePort 853 | Out-Null
-                New-NetFirewallRule -DisplayName "orcblockd: DNS over HTTPS ($protocol)" -Group 'orcblockd' -Direction Outbound -Action Block -Protocol $protocol -RemotePort 443 -RemoteAddress $ips | Out-Null
+    try {
+        switch -CaseSensitive ($op) {
+            'nrpt-remove' {
+                if ($arg -cnotmatch '^\{[0-9A-Fa-f-]{36}\}$') { throw "not an NRPT rule name: $arg" }
+                Remove-DnsClientNrptRule -Name $arg -Force
             }
+            'nrpt-add' {
+                if ($arg -cnotmatch '^[a-z0-9-]+(\.[a-z0-9-]+)+$') { throw "not a domain: $arg" }
+                Add-DnsClientNrptRule -Namespace ".$arg", $arg -NameServers '127.0.0.1' -Comment 'managed by orcblockd' | Out-Null
+            }
+            'fw-clear' {
+                Remove-NetFirewallRule -Group 'orcblockd' -ErrorAction SilentlyContinue
+            }
+            'fw-ip' {
+                $ips += [System.Net.IPAddress]::Parse($arg).ToString()
+            }
+            'fw-add' {
+                foreach ($protocol in 'TCP', 'UDP') {
+                    New-NetFirewallRule -DisplayName "orcblockd: DNS over TLS ($protocol)" -Group 'orcblockd' -Direction Outbound -Action Block -Protocol $protocol -RemotePort 853 | Out-Null
+                    New-NetFirewallRule -DisplayName "orcblockd: DNS over HTTPS ($protocol)" -Group 'orcblockd' -Direction Outbound -Action Block -Protocol $protocol -RemotePort 443 -RemoteAddress $ips | Out-Null
+                }
+            }
+            'flush' {
+                Clear-DnsClientCache
+            }
+            default { throw "unknown operation: $op" }
         }
-        'flush' {
-            Clear-DnsClientCache
-        }
-        default { throw "unknown operation: $op" }
+    } catch {
+        $failed += "${op}: $($_.Exception.Message)"
     }
+}
+if ($failed.Count -gt 0) {
+    [Console]::Error.WriteLine($failed -join '; ')
+    exit 1
 }
 "#;
 

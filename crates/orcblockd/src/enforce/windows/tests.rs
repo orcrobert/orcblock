@@ -392,3 +392,18 @@ fn a_failing_script_is_an_error() {
         .expect_err("fails");
     assert!(err.to_string().contains("Access is denied"), "{err}");
 }
+
+#[test]
+fn apply_script_carries_on_after_a_failed_operation() {
+    let body = APPLY_SCRIPT
+        .split_once("foreach ($line in @($input))")
+        .expect("loops over stdin")
+        .1;
+    let (inside, after) = body.split_once("} catch {").expect("catches per operation");
+    assert!(inside.contains("switch -CaseSensitive ($op)"));
+    assert!(after.contains("$failed +="));
+    assert!(after.contains("exit 1"), "failures still fail the run");
+    for script in [STATUS_SCRIPT, APPLY_SCRIPT] {
+        assert!(script.contains("$ProgressPreference = 'SilentlyContinue'"));
+    }
+}
