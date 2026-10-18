@@ -1,8 +1,10 @@
 import { mount } from "svelte";
 import App from "./App.svelte";
 import "./lib/theme.css";
+import { applyPlatform } from "./lib/platform";
 import { applyTheme, loadTheme } from "./lib/theme";
 
+applyPlatform();
 applyTheme(loadTheme());
 
 const target = document.getElementById("app");

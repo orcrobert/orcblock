@@ -3,6 +3,7 @@
   import Button from "../lib/components/Button.svelte";
   import StatusBar from "../lib/components/StatusBar.svelte";
   import Orc from "../lib/mascot/Orc.svelte";
+  import { PLATFORM } from "../lib/platform";
   import { waitFor } from "../lib/wait";
 
   let {
@@ -41,11 +42,15 @@
     failed: "TRY AGAIN",
   });
 
+  const WINDOWS = PLATFORM === "windows";
+  const LOG = WINDOWS ? "C:\\ProgramData\\OrcBlock\\orcblockd.log" : "/var/log/orcblockd.log";
   const FACTS = [
-    "RUNS IN THE BACKGROUND AS A LAUNCHDAEMON",
+    WINDOWS
+      ? "RUNS IN THE BACKGROUND AS A SYSTEM TASK"
+      : "RUNS IN THE BACKGROUND AS A LAUNCHDAEMON",
     "KEEPS BLOCKS ACTIVE WHEN THIS WINDOW CLOSES",
     "SURVIVES RESTARTS UNTIL THE TIMER ENDS",
-    "ASKS FOR YOUR PASSWORD ONCE",
+    WINDOWS ? "ASKS FOR ADMINISTRATOR RIGHTS ONCE" : "ASKS FOR YOUR PASSWORD ONCE",
   ];
 </script>
 
@@ -58,7 +63,7 @@
         <h2>Helper<br />{outdated ? "outdated" : "required"}</h2>
         <p class="micro problem" role="alert">
           {#if phase === "failed"}
-            INSTALLED BUT NOT STARTED // SEE /var/log/orcblockd.log
+            INSTALLED BUT NOT STARTED // SEE {LOG}
           {/if}
         </p>
       </div>
