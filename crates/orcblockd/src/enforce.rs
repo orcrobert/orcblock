@@ -10,7 +10,7 @@ mod mac;
 mod pf;
 mod resolver;
 pub(crate) mod runner;
-mod windows;
+pub(crate) mod windows;
 
 pub use mac::MacEnforcer;
 pub use runner::{CommandRunner, Output, SystemRunner};

@@ -60,8 +60,11 @@ struct ServeArgs {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let live = !matches!(&cli.command, Cmd::Serve(args) if args.dev);
-    init_logging(live.then(|| Layout::system().log_file()).as_deref());
+    // Only the installed daemon writes the log: install runs before the data
+    // directory is known to be locked, and must not write into one a user
+    // made.
+    let installed = matches!(&cli.command, Cmd::Serve(args) if !args.dev);
+    init_logging(installed.then(|| Layout::system().log_file()).as_deref());
     let result = match cli.command {
         Cmd::Serve(args) => serve(args),
         Cmd::Install => run_install(),
@@ -246,9 +249,26 @@ fn run_install() -> Result<()> {
     #[cfg(unix)]
     install::install(&layout, &SystemRunner, &exe)?;
     #[cfg(windows)]
-    install::windows::install(&layout, &SystemRunner, &exe)?;
+    install::windows::install(&layout, &SystemRunner, &exe)
+        .inspect_err(|err| note_in_log(&layout, err))?;
     info!("installed and started {}", layout.helper().display());
     Ok(())
+}
+
+/// Appends `err` to the daemon's log, where the app points people when an
+/// install it started out of sight fails, if the data directory is locked.
+#[cfg(windows)]
+fn note_in_log(layout: &Layout, err: &install::InstallError) {
+    use std::io::Write as _;
+
+    if install::windows::is_locked_dir(&SystemRunner, &layout.data_dir())
+        && let Ok(mut log) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(layout.log_file())
+    {
+        let _ = writeln!(log, "install failed: {err}");
+    }
 }
 
 fn run_uninstall() -> Result<()> {

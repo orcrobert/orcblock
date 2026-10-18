@@ -8,9 +8,11 @@ use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
+use jiff::Timestamp;
 use tracing::warn;
 
 use super::{InstallError, io_err, make_dir, refuse_during_block};
+use crate::enforce::windows::powershell;
 use crate::{CommandRunner, Enforcer, Layout, TASK_NAME, fsutil};
 
 const SCHTASKS: &str = r"C:\Windows\System32\schtasks.exe";
@@ -25,6 +27,19 @@ const ELEVATED_LABELS: [&str; 2] = ["S-1-16-12288", "S-1-16-16384"];
 const SYSTEM: &str = "*S-1-5-18";
 const ADMINISTRATORS: &str = "*S-1-5-32-544";
 const USERS: &str = "*S-1-5-32-545";
+
+/// SDDL names for the owners a locked data directory may have.
+const TRUSTED_OWNERS: [&str; 4] = ["SY", "BA", "S-1-5-18", "S-1-5-32-544"];
+
+/// SDDL access rights that only read and list, as icacls writes `RX`.
+const READ_ONLY_RIGHTS: [&str; 5] = ["0x1200a9", "0x120089", "FR", "GR", "GRGX"];
+
+/// Prints the SDDL of the path on the first line of stdin.
+const ACL_SCRIPT: &str = r"
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+(Get-Acl -LiteralPath @($input)[0]).Sddl
+";
 
 /// How long to wait for a stopped helper to let go of its file.
 const COPY_ATTEMPTS: u32 = 20;
@@ -45,6 +60,57 @@ pub fn require_elevation(runner: &impl CommandRunner) -> Result<(), InstallError
     } else {
         Err(InstallError::NotElevated)
     }
+}
+
+/// Whether `sddl` describes a directory owned by SYSTEM or Administrators,
+/// protected from inheritance, that nobody else may write to.
+#[must_use]
+pub fn is_locked_sddl(sddl: &str) -> bool {
+    let Some(rest) = sddl.trim().strip_prefix("O:") else {
+        return false;
+    };
+    let owner_end = ["G:", "D:"]
+        .iter()
+        .filter_map(|tag| rest.find(tag))
+        .min()
+        .unwrap_or(rest.len());
+    if !TRUSTED_OWNERS.contains(&&rest[..owner_end]) {
+        return false;
+    }
+    let Some(start) = rest.find("D:") else {
+        return false;
+    };
+    let dacl = &rest[start + 2..];
+    let dacl = dacl.find("S:").map_or(dacl, |end| &dacl[..end]);
+    let (flags, aces) = dacl.split_at(dacl.find('(').unwrap_or(dacl.len()));
+    flags.contains('P')
+        && aces
+            .split(')')
+            .filter(|ace| !ace.is_empty())
+            .all(|ace| ace_is_safe(ace.trim_start_matches('(')))
+}
+
+fn ace_is_safe(ace: &str) -> bool {
+    let [kind, flags, rights, _, _, sid] = ace.split(';').collect::<Vec<_>>()[..] else {
+        return false;
+    };
+    if flags.contains("ID") {
+        return false;
+    }
+    match kind {
+        "D" => true,
+        "A" => TRUSTED_OWNERS.contains(&sid) || READ_ONLY_RIGHTS.contains(&rights),
+        _ => false,
+    }
+}
+
+/// Whether `dir` is a real directory locked down as [`install`] leaves it.
+pub fn is_locked_dir(runner: &impl CommandRunner, dir: &Path) -> bool {
+    let real_dir =
+        fs::symlink_metadata(dir).is_ok_and(|meta| meta.is_dir() && !meta.file_type().is_symlink());
+    real_dir
+        && powershell(runner, ACL_SCRIPT, Some(&format!("{}\n", dir.display())))
+            .is_ok_and(|sddl| is_locked_sddl(&sddl))
 }
 
 /// The task definition for the helper under `layout`.
@@ -131,9 +197,7 @@ pub fn install(
     exe: &Path,
 ) -> Result<(), InstallError> {
     require_elevation(runner)?;
-    let data_dir = layout.data_dir();
-    make_dir(&data_dir)?;
-    lock_down(runner, &data_dir)?;
+    prepare_data_dir(runner, &layout.data_dir())?;
 
     let helper = layout.helper();
     if let Some(dir) = helper.parent() {
@@ -167,8 +231,12 @@ pub fn uninstall(
     enforcer: &mut impl Enforcer,
 ) -> Result<(), InstallError> {
     require_elevation(runner)?;
-    refuse_during_block(layout)?;
+    // Stopped first, so no block can start between the check and the end.
     let _ = runner.run(SCHTASKS, &["/End", "/TN", TASK_NAME], None);
+    if let Err(err) = refuse_during_block(layout) {
+        let _ = runner.run(SCHTASKS, &["/Run", "/TN", TASK_NAME], None);
+        return Err(err);
+    }
     let _ = runner.run(SCHTASKS, &["/Delete", "/TN", TASK_NAME, "/F"], None);
     if let Err(err) = enforcer.clear() {
         warn!(%err, "cleanup after stopping the helper was incomplete");
@@ -184,12 +252,61 @@ pub fn uninstall(
     Ok(())
 }
 
-/// Makes SYSTEM the owner of `dir` and everything in it, with full control
-/// for SYSTEM and Administrators and read-only access for Users, so a
-/// directory a user created before the install does not stay theirs.
+/// Leaves `dir` locked down and holding only what the daemon wrote there.
+/// Any user may create a directory in `ProgramData`, so one that is a link or
+/// that is not locked is moved aside instead of repaired: anything planted
+/// inside could be a link that turns the daemon's writes elsewhere.
+fn prepare_data_dir(runner: &impl CommandRunner, dir: &Path) -> Result<(), InstallError> {
+    if fs::symlink_metadata(dir).is_ok() {
+        if is_locked_dir(runner, dir) {
+            return lock_down(runner, dir);
+        }
+        let aside = set_aside(dir)?;
+        warn!(path = %aside.display(), "moved an unlocked data directory aside");
+    }
+    if let Some(parent) = dir.parent() {
+        make_dir(parent)?;
+    }
+    // create_dir, not create_dir_all: a directory someone made in between
+    // must not be taken over.
+    fs::create_dir(dir).map_err(io_err("create", dir))?;
+    lock_down(runner, dir)?;
+    // A new directory in `ProgramData` lets users add files until it is
+    // locked.
+    if fs::read_dir(dir)
+        .map_err(io_err("read", dir))?
+        .next()
+        .is_some()
+    {
+        return Err(InstallError::Tampered(set_aside(dir)?));
+    }
+    Ok(())
+}
+
+/// Renames `dir` to a free `<name>.untrusted-<seconds>` next to it.
+fn set_aside(dir: &Path) -> Result<std::path::PathBuf, InstallError> {
+    let name = dir
+        .file_name()
+        .map_or_else(Default::default, |name| name.to_string_lossy());
+    let stamp = Timestamp::now().as_second();
+    let mut attempt = 0;
+    loop {
+        let aside = dir.with_file_name(format!("{name}.untrusted-{stamp}-{attempt}"));
+        if fs::symlink_metadata(&aside).is_err() {
+            fs::rename(dir, &aside).map_err(io_err("move aside", dir))?;
+            return Ok(aside);
+        }
+        attempt += 1;
+    }
+}
+
+/// Makes SYSTEM the owner of `dir`, with full control for SYSTEM and
+/// Administrators and read-only access for Users, inherited by what the
+/// daemon creates inside. Not recursive: a link inside must not carry the
+/// change elsewhere.
 fn lock_down(runner: &impl CommandRunner, dir: &Path) -> Result<(), InstallError> {
     let dir = dir.to_string_lossy();
-    runner.run(ICACLS, &[&dir, "/setowner", SYSTEM, "/T", "/C", "/Q"], None)?;
+    runner.run(ICACLS, &[&dir, "/setowner", SYSTEM, "/C", "/Q"], None)?;
     let system = format!("{SYSTEM}:(OI)(CI)F");
     let administrators = format!("{ADMINISTRATORS}:(OI)(CI)F");
     let users = format!("{USERS}:(OI)(CI)RX");
@@ -202,7 +319,6 @@ fn lock_down(runner: &impl CommandRunner, dir: &Path) -> Result<(), InstallError
             &system,
             &administrators,
             &users,
-            "/T",
             "/C",
             "/Q",
         ],

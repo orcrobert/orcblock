@@ -39,6 +39,10 @@ pub enum InstallError {
     /// Not running with administrator rights (Windows).
     #[error("this needs administrator rights; run it from an elevated prompt")]
     NotElevated,
+    /// Files appeared in a new data directory before it was locked down
+    /// (Windows); the directory was moved to the given path.
+    #[error("files appeared in the data directory before it was locked down; it was moved to {}", .0.display())]
+    Tampered(PathBuf),
     /// Uninstalling is refused while a block runs.
     #[error("a block is running for another {}; OrcBlock can be uninstalled once it ends", format_remaining(*.0))]
     Blocking(Duration),
