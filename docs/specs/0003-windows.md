@@ -84,3 +84,19 @@ Pure logic (status parsing, operation planning, task XML, elevation parsing, Win
 
 ## Open questions
 - Whether the Task Scheduler's restart policy needs tuning after real-world crashes; the 5 minute repetition is the fallback.
+
+## Follow-ups
+
+Found in review and left for later; none lets a standard user end a block.
+
+- A corrupt state file starts the daemon with no block (existing code on both platforms); it should keep the rules and refuse requests until fixed.
+- If the data directory stops looking locked (an administrator changed it, or `Get-Acl` fails), the installed daemon exits on every start and nothing ticks or listens on port 53 while the NRPT rules stay. It should keep enforcing without saving and report the problem in `Status`.
+- NRPT: a more specific rule without our comment, or any Group Policy NRPT rule, overrides ours; `verify` should report both. Compare every relevant firewall rule field and the profile state too.
+- Bind 127.0.0.1:53 and 47811 exclusively (`SO_EXCLUSIVEADDRUSE`; needs a dependency and an ADR).
+- A `<SecurityDescriptor>` on the scheduled task.
+- Rotate or cap `orcblockd.log`.
+- The potion month comes from the local time zone, which a standard user can change by up to a day.
+- The app should pass the helper's canonical path to the elevated run, in case a junction higher up is retargeted after the hash check (needs testing `\\?\` paths with `Start-Process`).
+- A directory moved aside as `Tampered` stays in ProgramData, locked; harmless, but untidy.
+- Kill open connections to blocked sites at block start, as pf does on macOS.
+- Verify on a Windows VM: the NSIS hooks during an update, `share_mode` with `Start-Process`, and `Instant` across hibernation.
