@@ -12,7 +12,7 @@ mod client;
 pub mod codec;
 mod protocol;
 
-pub use client::{Client, ClientError, DEFAULT_SOCKET, Endpoint, default_endpoint};
+pub use client::{Client, ClientError, DEFAULT_SOCKET, DEV_PORT, Endpoint, PORT, default_endpoint};
 pub use protocol::{
     Block, Command, ErrorKind, MAX_MESSAGE_LEN, Mode, PROTOCOL_VERSION, Potions, Request, Response,
     Site, Status,

@@ -23,9 +23,15 @@ pub type Endpoint = std::net::SocketAddr;
 #[cfg(unix)]
 pub const DEFAULT_SOCKET: &str = "/var/run/orcblockd.sock";
 
-/// Where the installed daemon listens.
+/// Where the installed daemon listens; [`PORT`] on loopback.
 #[cfg(windows)]
 pub const DEFAULT_SOCKET: &str = "127.0.0.1:47811";
+
+/// The loopback port of the installed daemon on Windows.
+pub const PORT: u16 = 47811;
+
+/// The loopback port of a development daemon on Windows.
+pub const DEV_PORT: u16 = 47812;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -74,7 +80,7 @@ pub fn default_endpoint() -> Endpoint {
     #[cfg(unix)]
     return Endpoint::from(DEFAULT_SOCKET);
     #[cfg(windows)]
-    return std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 47811));
+    return std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, PORT));
 }
 
 impl Client {

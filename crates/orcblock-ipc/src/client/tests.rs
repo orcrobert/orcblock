@@ -130,3 +130,12 @@ fn default_endpoint_is_default_socket() {
 fn default_endpoint_is_default_socket() {
     assert_eq!(default_endpoint().to_string(), DEFAULT_SOCKET);
 }
+
+#[test]
+fn default_socket_names_the_default_endpoint() {
+    assert_eq!(
+        DEFAULT_SOCKET.parse::<Endpoint>().expect("parses"),
+        default_endpoint()
+    );
+    assert_ne!(PORT, DEV_PORT);
+}

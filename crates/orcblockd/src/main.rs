@@ -118,7 +118,7 @@ fn dev_socket(data_dir: &Path) -> Endpoint {
 
 #[cfg(windows)]
 fn dev_socket(_data_dir: &Path) -> Endpoint {
-    SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 47812))
+    SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, orcblock_ipc::DEV_PORT))
 }
 
 #[cfg(unix)]
