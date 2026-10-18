@@ -98,6 +98,22 @@ fn elevation_script_takes_the_path_from_the_environment() {
             .contains("-FilePath $env:ORCBLOCK_HELPER -ArgumentList 'install' -Verb RunAs")
     );
     assert!(ELEVATE_SCRIPT.contains("exit 1223"));
+    let after_start = ELEVATE_SCRIPT
+        .split_once("-PassThru")
+        .expect("starts the helper")
+        .1;
+    let handle = after_start
+        .find("$null = $process.Handle")
+        .expect("caches the handle");
+    let wait = after_start.find("$process.WaitForExit()").expect("waits");
+    assert!(
+        handle < wait,
+        "the handle is read before the process can end"
+    );
+    assert!(
+        ELEVATE_SCRIPT.contains("if ($null -eq $process.ExitCode) { exit 1 }"),
+        "a missing exit code is a failure, not success"
+    );
     assert_eq!(encode_command("dir"), "ZABpAHIA");
     assert!(POWERSHELL.ends_with(r"\powershell.exe"));
 }

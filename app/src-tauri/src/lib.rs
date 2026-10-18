@@ -182,11 +182,20 @@ pub fn run() {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .init();
-    let socket = std::env::var("ORCBLOCK_SOCKET")
-        .ok()
-        .and_then(|socket| socket.parse::<Endpoint>().ok());
+    let socket = std::env::var_os("ORCBLOCK_SOCKET");
+    // Set at all means a development build, even if the value is wrong:
+    // install stays disabled rather than falling back to the live helper.
     let dev = socket.is_some();
-    let client = Client::new(socket.unwrap_or_else(default_endpoint));
+    let endpoint = socket.map_or_else(default_endpoint, |socket| {
+        socket
+            .to_string_lossy()
+            .parse::<Endpoint>()
+            .unwrap_or_else(|err| {
+                tracing::error!(?socket, %err, "ORCBLOCK_SOCKET is not a daemon address");
+                std::process::exit(2)
+            })
+    });
+    let client = Client::new(endpoint);
 
     let result = tauri::Builder::default()
         .setup(move |app| {

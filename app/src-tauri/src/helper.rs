@@ -57,17 +57,29 @@ pub(crate) fn install(helper: &Path) -> Result<(), InstallError> {
     })
 }
 
-/// Runs `helper install` elevated through the UAC prompt. Unlike the
-/// macOS bundle, a per-machine install directory is writable only by
-/// administrators, so checking the hash before the prompt is enough.
+/// Runs `helper install` elevated through the UAC prompt.
 #[cfg(windows)]
 pub(crate) fn install(helper: &Path) -> Result<(), InstallError> {
+    use std::io::Read as _;
+    use std::os::windows::fs::OpenOptionsExt as _;
     use std::os::windows::process::CommandExt as _;
 
     // Starts PowerShell without flashing a console window.
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    // Others may read and run the file, but not write, rename or delete it.
+    const FILE_SHARE_READ: u32 = 0x1;
 
-    let bytes = std::fs::read(helper).map_err(|err| InstallError::Failed(err.to_string()))?;
+    let failed = |err: std::io::Error| InstallError::Failed(err.to_string());
+    // Held until the elevated install exits, so the file UAC runs is the
+    // one whose hash was checked, even if the app sits in a folder the
+    // user can write to.
+    let mut file = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ)
+        .open(helper)
+        .map_err(failed)?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).map_err(failed)?;
     if sha256_hex(&bytes) != HELPER_SHA256 {
         return Err(InstallError::Failed(
             "the helper does not match this copy of OrcBlock".into(),
@@ -87,6 +99,7 @@ pub(crate) fn install(helper: &Path) -> Result<(), InstallError> {
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(InstallError::NoPrompt)?;
+    drop(file);
     outcome(
         output.status.code(),
         &String::from_utf8_lossy(&output.stderr),
@@ -103,16 +116,21 @@ const ERROR_CANCELLED: i32 = 1223;
 /// Starts the helper in `$env:ORCBLOCK_HELPER` with `install` through UAC,
 /// waits, and exits with its exit code, or 1223 when the prompt was
 /// declined. The path comes from the environment so no script is ever
-/// built from it.
+/// built from it. Reading `Handle` right away keeps the exit code of an
+/// elevated process, which PowerShell 5.1 otherwise reports as `$null`.
 #[cfg(any(windows, test))]
 const ELEVATE_SCRIPT: &str = r"
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 try {
-    $process = Start-Process -FilePath $env:ORCBLOCK_HELPER -ArgumentList 'install' -Verb RunAs -WindowStyle Hidden -Wait -PassThru
+    $process = Start-Process -FilePath $env:ORCBLOCK_HELPER -ArgumentList 'install' -Verb RunAs -WindowStyle Hidden -PassThru
 } catch {
     if ($_.Exception.NativeErrorCode -eq 1223 -or $_.Exception.InnerException.NativeErrorCode -eq 1223) { exit 1223 }
     throw
 }
+$null = $process.Handle
+$process.WaitForExit()
+if ($null -eq $process.ExitCode) { exit 1 }
 exit $process.ExitCode
 ";
 
