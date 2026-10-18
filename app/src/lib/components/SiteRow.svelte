@@ -9,23 +9,38 @@
     onremove,
   }: { site: Site; index: number; locked: boolean; onremove: (site: Site) => void } = $props();
 
+  // A site that cannot be reached now (blocked, offline) gets its icon on a
+  // later try. Unreachable sites are not cached, so each try goes to the
+  // network: back off from a minute to an hour.
+  const RETRY_MS = 60_000;
+  const MAX_RETRY_MS = 3_600_000;
+
   let icon = $state<string | null>(null);
   let failed = $state(false);
 
   $effect(() => {
     const domain = site.domain;
     let current = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = RETRY_MS;
+    icon = null;
     failed = false;
-    api
-      .favicon(domain)
-      .then((url) => {
-        if (current) icon = url;
-      })
-      .catch(() => {
-        if (current) icon = null;
-      });
+    const load = () => {
+      api
+        .favicon(domain)
+        .catch(() => null)
+        .then((url) => {
+          if (!current) return;
+          icon = url;
+          if (url) return;
+          timer = setTimeout(load, delay);
+          delay = Math.min(delay * 2, MAX_RETRY_MS);
+        });
+    };
+    load();
     return () => {
       current = false;
+      clearTimeout(timer);
     };
   });
 </script>
