@@ -22,7 +22,7 @@ pub use blocked::Blocked;
 pub use clock::{Clock, SystemClock};
 pub use enforce::{
     CommandRunner, DryRunCall, DryRunEnforcer, EnforceError, Enforcer, MacEnforcer, Output,
-    SystemRunner,
+    SystemRunner, WinEnforcer,
 };
 pub use layout::{LABEL, Layout, Platform, TASK_NAME};
 pub use service::{MAX_RESTART_CREDIT, Service, StartError, VERIFY_EVERY};

@@ -11,6 +11,7 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
 clap.workspace = true
 jiff.workspace = true
 orcblock-core.workspace = true
