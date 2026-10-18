@@ -11,7 +11,8 @@
 
   // A site that cannot be reached now (blocked, offline) gets its icon on a
   // later try. Unreachable sites are not cached, so each try goes to the
-  // network: back off from a minute to an hour.
+  // network: back off from a minute to an hour. Sites known to have no icon
+  // also return null, but those tries are answered from the cache.
   const RETRY_MS = 60_000;
   const MAX_RETRY_MS = 3_600_000;
 
@@ -28,6 +29,7 @@
     const load = () => {
       api
         .favicon(domain)
+        // A failed call is treated like no icon yet and tried again.
         .catch(() => null)
         .then((url) => {
           if (!current) return;
