@@ -329,3 +329,50 @@ fn caps_icons_and_cuts_pages() {
         assert_eq!(capped(bytes, body).map(|kept| kept.len()), want, "{name}");
     }
 }
+
+#[test]
+fn caches_icons_and_misses_but_not_unreachable_sites() {
+    const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+    let cases: [(&str, FakeHttp, &str); 3] = [
+        (
+            "icon",
+            FakeHttp(vec![("https://example.com/favicon.ico", Ok(PNG))]),
+            "img",
+        ),
+        (
+            "miss",
+            FakeHttp(vec![
+                ("https://example.com/favicon.ico", Err(Failure::Missing)),
+                ("https://example.com/", Ok(b"<html></html>")),
+            ]),
+            "miss",
+        ),
+        ("unreachable", FakeHttp(vec![]), ""),
+    ];
+    let domain = Domain::parse("example.com").expect("valid");
+    for (name, http, want) in cases {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let favicons = Favicons::new(dir.path().to_path_buf());
+        let icon = favicons.get_with(&http, &domain);
+        assert_eq!(icon.is_some(), want == "img", "{name}");
+        let files: Vec<String> = fs::read_dir(dir.path())
+            .map(|entries| {
+                entries
+                    .map(|entry| {
+                        entry
+                            .expect("lists")
+                            .file_name()
+                            .into_string()
+                            .expect("utf-8")
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let kinds: Vec<&str> = files
+            .iter()
+            .filter_map(|file| file.rsplit_once('.').map(|(_, kind)| kind))
+            .collect();
+        let expected: &[&str] = if want.is_empty() { &[] } else { &[want] };
+        assert_eq!(kinds, expected, "{name}: {files:?}");
+    }
+}

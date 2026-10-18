@@ -76,6 +76,10 @@ impl Favicons {
     /// The icon for `domain` as a data URL, or `None` when the site has no
     /// usable icon (the UI shows an empty square instead).
     pub(crate) fn get(&self, domain: &Domain) -> Option<String> {
+        self.get_with(&self.web, domain)
+    }
+
+    fn get_with(&self, http: &impl Http, domain: &Domain) -> Option<String> {
         let key = cache_key(domain);
         let hit = self.cache_dir.join(format!("{key}.img"));
         let miss = self.cache_dir.join(format!("{key}.miss"));
@@ -85,7 +89,7 @@ impl Favicons {
         if is_fresh(&miss) {
             return None;
         }
-        let found = fetch(&self.web, domain);
+        let found = fetch(http, domain);
         let temp = || {
             self.cache_dir.join(format!(
                 ".{}.{}.tmp",
