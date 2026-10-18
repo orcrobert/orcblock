@@ -4,21 +4,20 @@ mod duration;
 mod render;
 
 use std::io::{self, Write};
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use jiff::tz::TimeZone;
 use orcblock_core::BlockDuration;
-use orcblock_ipc::{Client, ClientError, DEFAULT_SOCKET, Status};
+use orcblock_ipc::{Client, ClientError, DEFAULT_SOCKET, Endpoint, Status};
 
 #[derive(Debug, Parser)]
 #[command(version, about = "Manage OrcBlock from the terminal")]
 struct Cli {
-    /// The daemon's socket.
+    /// The daemon's socket, or its address on Windows.
     #[arg(long, env = "ORCBLOCK_SOCKET", default_value = DEFAULT_SOCKET, global = true)]
-    socket: PathBuf,
+    socket: Endpoint,
     #[command(subcommand)]
     command: Option<Cmd>,
 }
@@ -77,10 +76,17 @@ fn run(cli: Cli) -> Result<()> {
         .context("write to stdout")
 }
 
+/// Where `make daemon-dev` listens.
+const DEV_SOCKET: &str = if cfg!(windows) {
+    "127.0.0.1:47812"
+} else {
+    "data/orcblockd.sock"
+};
+
 fn call(result: Result<Status, ClientError>) -> Result<Status> {
     result.map_err(|err| match err {
         ClientError::Unavailable(_) => anyhow::anyhow!(
-            "{err}; install it from the OrcBlock app, or run `make daemon-dev` and pass --socket data/orcblockd.sock"
+            "{err}; install it from the OrcBlock app, or run `make daemon-dev` and pass --socket {DEV_SOCKET}"
         ),
         other => other.into(),
     })
