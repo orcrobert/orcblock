@@ -35,7 +35,8 @@ pub struct SystemClock {
 }
 
 impl SystemClock {
-    /// The system's clocks.
+    /// Wall time from the system; on Windows, monotonic readings count
+    /// from this call.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -66,6 +67,9 @@ impl Clock for SystemClock {
         Ok(Duration::from(spec))
     }
 
+    // QueryPerformanceCounter, which keeps counting through sleep on
+    // current Windows. If it ever stopped, blocks would run longer than
+    // set, never shorter.
     #[cfg(windows)]
     fn monotonic(&self) -> io::Result<Duration> {
         Ok(self.origin.elapsed())

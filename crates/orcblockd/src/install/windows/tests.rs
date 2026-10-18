@@ -361,3 +361,23 @@ fn install_fails_when_files_appear_before_the_lock_down() {
     assert!(!layout.data_dir().exists());
     assert!(!layout.helper().exists(), "nothing was installed");
 }
+
+#[test]
+fn elevation_needs_the_label_as_a_whole_field() {
+    assert!(!is_elevated(
+        "\"Group\",\"Alias\",\"S-1-16-12288-1\",\"\"\r\n"
+    ));
+}
+
+#[test]
+fn reinstalling_from_the_installed_helper_copies_nothing() {
+    let tmp = tempfile::tempdir().expect("temp dir");
+    let layout = installed(tmp.path());
+    let dir = layout.helper().parent().expect("has a dir").to_path_buf();
+    let roundabout = dir
+        .join("..")
+        .join(dir.file_name().expect("named"))
+        .join("orcblockd.exe");
+    install(&layout, &runner(ELEVATED), &roundabout).expect("reinstalls");
+    assert_eq!(fs::read(layout.helper()).expect("kept"), b"binary");
+}

@@ -48,7 +48,9 @@ const COPY_RETRY: Duration = Duration::from_millis(250);
 /// Whether `whoami /groups` output lists an elevated integrity label.
 #[must_use]
 pub fn is_elevated(groups: &str) -> bool {
-    ELEVATED_LABELS.iter().any(|label| groups.contains(label))
+    ELEVATED_LABELS
+        .iter()
+        .any(|label| groups.contains(&format!("\"{label}\"")))
 }
 
 /// Fails with [`InstallError::NotElevated`] unless this process runs
@@ -205,7 +207,13 @@ pub fn install(
     }
     // A running helper keeps its executable open; stop it before replacing.
     let _ = runner.run(SCHTASKS, &["/End", "/TN", TASK_NAME], None);
-    if exe != helper {
+    // Reinstalling from the installed helper itself copies nothing; paths
+    // differ only in case or form there, so compare them resolved.
+    let same = matches!(
+        (fs::canonicalize(exe), fs::canonicalize(&helper)),
+        (Ok(exe), Ok(helper)) if exe == helper
+    );
+    if !same {
         let bytes = fs::read(exe).map_err(io_err("read", exe))?;
         copy_with_retries(&helper, &bytes)?;
     }

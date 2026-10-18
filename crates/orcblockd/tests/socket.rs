@@ -117,9 +117,11 @@ async fn hangs_up_on_a_line_that_is_not_a_request() {
         stream
             .write_all(b"POST / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n{\"v\":1,\"cmd\":\"add_site\",\"site\":\"example.com\"}\n")
             .expect("writes");
+        // Windows may reset a connection closed with unread bytes; what
+        // arrived before that is what counts.
         BufReader::new(stream)
             .lines()
-            .map(|line| line.expect("reads"))
+            .map_while(Result::ok)
             .collect::<Vec<_>>()
     })
     .await
