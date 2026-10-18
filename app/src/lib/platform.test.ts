@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectPlatform } from "./platform";
+import { applyPlatform, detectPlatform } from "./platform";
 
 describe("detectPlatform", () => {
   it.each([
@@ -16,5 +16,13 @@ describe("detectPlatform", () => {
     ["nothing to go on", "", "mac"],
   ])("%s", (_name, userAgent, want) => {
     expect(detectPlatform(userAgent)).toBe(want);
+  });
+});
+
+describe("applyPlatform", () => {
+  it("marks the root for CSS", () => {
+    const root = { dataset: {} as DOMStringMap };
+    applyPlatform("windows", root);
+    expect(root.dataset.platform).toBe("windows");
   });
 });

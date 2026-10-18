@@ -1,6 +1,7 @@
 // The desktop system the app runs on, read from the webview's user agent
 // (WebView2 on Windows, WKWebView on macOS) and exposed to CSS as
-// data-platform on <html>.
+// data-platform on <html>. Only the app sets it; the website, which shares
+// these components, gets the macOS look, which is also the default.
 
 export type Platform = "mac" | "windows";
 
@@ -12,6 +13,9 @@ export const PLATFORM: Platform = detectPlatform(
   typeof navigator === "undefined" ? "" : navigator.userAgent,
 );
 
-export function applyPlatform(platform: Platform = PLATFORM): void {
-  document.documentElement.dataset.platform = platform;
+export function applyPlatform(
+  platform: Platform = PLATFORM,
+  root: { dataset: DOMStringMap } = document.documentElement,
+): void {
+  root.dataset.platform = platform;
 }

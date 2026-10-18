@@ -18,7 +18,7 @@ Look: Swiss industrial print brutalism. Follow the industrial-brutalist-ui skill
 - Texture: a global SVG grain on `body::after`; hatch fills for empty and disabled states.
 
 ## Components (`app/src/lib/components`)
-- `TopBar`: `[ ORCBLOCK ]`, `REV x.y.z`, `ThemeSwitch` (cycles SYS / LGT / DRK). Drag region; left padding clears the traffic lights.
+- `TopBar`: `[ ORCBLOCK ]`, `REV x.y.z`, `ThemeSwitch` (cycles SYS / LGT / DRK). Drag region; left padding clears the macOS traffic lights and drops to `--gutter` under `[data-platform="windows"]`, which `lib/platform.ts` sets on `<html>` in the app only (Windows draws its own title bar).
 - `StatusBar`: `UNIT / ORC-01`, a square status light and `STATUS: IDLE | ARMED | HELPER MISSING` (red when armed), `DRY-RUN` badge in dev.
 - `Button`: full-bleed cell button, `solid` (the one main action per screen), `alert` (red, the potion), `plain`. Label left, `>>>` right. Disabled is hatched.
 - `DurationPicker`: `[ DURATION ]`, the macro readout `H:MM`, `ENDS 17:42`, and an 8-cell strip `− 25M 1H 2H 4H 8H 1D +` (minus and plus step through `DURATION_STOPS`, 15 min to 7 days). Double-clicking the readout (or activating it with the keyboard or VoiceOver) turns it into an input in the same type with a red underline: `1:30`, `90`, `90m`, `2h`, `1h30`, `2d 4h` (`parseDuration`, 1 min to 7 days); Enter or blur sets it, Escape cancels, out-of-range shows `OUT OF RANGE // 1M TO 7D` in red.
