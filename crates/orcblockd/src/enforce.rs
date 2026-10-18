@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use orcblock_core::Domain;
 use tracing::info;
 
+mod doh;
 mod mac;
 mod pf;
 mod resolver;

@@ -1,13 +1,4 @@
-use std::net::IpAddr;
-
 use super::*;
-
-#[test]
-fn resolvers_are_ip_addresses() {
-    for ip in DOH_RESOLVERS {
-        assert!(ip.parse::<IpAddr>().is_ok(), "{ip}");
-    }
-}
 
 #[test]
 fn rules_name_the_table_and_ports() {
