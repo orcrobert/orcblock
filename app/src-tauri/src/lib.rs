@@ -2,9 +2,9 @@
 //! background task that streams its status to the window, and favicons.
 
 mod favicon;
+mod helper;
 
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -127,7 +127,7 @@ async fn favicon(state: Shared<'_>, domain: String) -> Result<Option<String>, Ap
         })
 }
 
-/// Installs the bundled helper through the macOS administrator prompt.
+/// Installs the bundled helper through the system's administrator prompt.
 #[tauri::command]
 async fn install_helper(state: Shared<'_>) -> Result<(), AppError> {
     let fail = |message: String| AppError {
@@ -139,73 +139,18 @@ async fn install_helper(state: Shared<'_>) -> Result<(), AppError> {
             "Dev mode talks to the dev daemon: run `make daemon-dev` in the repository".into(),
         ));
     }
-    if HELPER_SHA256.is_empty() {
+    if helper::HELPER_SHA256.is_empty() {
         return Err(fail(
             "This build has no bundled helper; build the app with `make bundle`".into(),
         ));
     }
-    let helper = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("orcblockd")))
-        .filter(|path| path.is_file())
-        .ok_or_else(|| {
-            fail("The helper is missing from the app bundle; reinstall OrcBlock".into())
-        })?;
-    let script = install_script(&helper, HELPER_SHA256);
-    tauri::async_runtime::spawn_blocking(move || {
-        Command::new("/usr/bin/osascript")
-            .args(["-e", &script])
-            .output()
-    })
-    .await
-    .map_err(|err| fail(err.to_string()))?
-    .map_err(|err| {
-        fail(format!(
-            "Could not ask for the administrator password: {err}"
-        ))
-    })
-    .and_then(|output| {
-        if output.status.success() {
-            Ok(())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(fail(if stderr.contains("-128") {
-                "Installation cancelled".into()
-            } else {
-                format!("Installation failed: {}", stderr.trim())
-            }))
-        }
-    })
-}
-
-/// SHA-256 of the daemon bundled with this build, or empty without one.
-const HELPER_SHA256: &str = env!("ORCBLOCK_HELPER_SHA256");
-
-/// The `AppleScript` that installs the helper as root. The bundle is
-/// writable by the user, so root first copies the helper into its own
-/// temp dir, checks the copy against `sha256` and runs only that copy:
-/// nothing swapped in before or during the password prompt gets root.
-fn install_script(helper: &std::path::Path, sha256: &str) -> String {
-    let quote = |text: &str| text.replace('\\', "\\\\").replace('"', "\\\"");
-    let (before, after) = install_shell(sha256);
-    format!(
-        "do shell script \"{}\" & quoted form of \"{}\" & \"{}\" with prompt \"OrcBlock needs to install its helper to keep blocks in place.\" with administrator privileges",
-        quote(before),
-        quote(&helper.to_string_lossy()),
-        quote(&after),
-    )
-}
-
-/// The shell that runs as root, split around the single-quoted helper path.
-fn install_shell(sha256: &str) -> (&'static str, String) {
-    let before = "t=$(/usr/bin/mktemp -d) || exit 1; /bin/cp -- ";
-    let after = format!(
-        " \"$t/orcblockd\" || {{ /bin/rm -rf \"$t\"; exit 1; }}; \
-         if [ \"$(/usr/bin/shasum -a 256 \"$t/orcblockd\" | /usr/bin/cut -c1-64)\" != \"{sha256}\" ]; then \
-         /bin/rm -rf \"$t\"; echo \"the helper does not match this copy of OrcBlock\" >&2; exit 1; fi; \
-         \"$t/orcblockd\" install; s=$?; /bin/rm -rf \"$t\"; exit $s"
-    );
-    (before, after)
+    let helper = helper::bundled().ok_or_else(|| {
+        fail("The helper is missing from the app bundle; reinstall OrcBlock".into())
+    })?;
+    tauri::async_runtime::spawn_blocking(move || helper::install(&helper))
+        .await
+        .map_err(|err| fail(err.to_string()))?
+        .map_err(|err| fail(err.to_string()))
 }
 
 /// Streams the daemon status to the window: every second during a block,
