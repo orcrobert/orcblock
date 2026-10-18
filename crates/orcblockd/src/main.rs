@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -175,6 +176,9 @@ fn serve(args: ServeArgs) -> Result<()> {
     }
 }
 
+/// How often to retry binding the sinkhole while its port is taken.
+const DNS_RETRY: Duration = Duration::from_secs(5);
+
 fn run_daemon<E: Enforcer + 'static>(
     store: Store,
     enforcer: E,
@@ -183,9 +187,6 @@ fn run_daemon<E: Enforcer + 'static>(
     dns_addr: SocketAddr,
 ) -> Result<()> {
     let runtime = tokio::runtime::Runtime::new().context("start the async runtime")?;
-    let sinkhole = runtime
-        .block_on(Sinkhole::bind(dns_addr))
-        .with_context(|| format!("bind the DNS sinkhole on {dns_addr}"))?;
 
     // Enforce any running block before accepting requests.
     let blocked = Blocked::default();
@@ -194,7 +195,12 @@ fn run_daemon<E: Enforcer + 'static>(
 
     runtime.block_on(async {
         let (stop_dns, dns_stopped) = watch::channel(false);
-        let dns = tokio::spawn(sinkhole.serve(blocked, dns_stopped));
+        let dns = tokio::spawn(Sinkhole::serve_on(
+            dns_addr,
+            blocked,
+            dns_stopped,
+            DNS_RETRY,
+        ));
         let listener =
             server::bind(socket).with_context(|| format!("listen on {}", display(socket)))?;
         server::run(service, listener, shutdown_signal()?).await;
@@ -220,7 +226,8 @@ fn shutdown_signal() -> Result<impl Future<Output = ()>> {
 }
 
 /// Ctrl+C only: the task scheduler ends the daemon by terminating it, and
-/// the state is saved on every change and every few seconds anyway.
+/// the state is saved on every change and every few seconds anyway. A task
+/// has no console, so when Ctrl+C cannot be watched the daemon runs on.
 #[cfg(windows)]
 #[expect(
     clippy::unnecessary_wraps,
@@ -228,7 +235,10 @@ fn shutdown_signal() -> Result<impl Future<Output = ()>> {
 )]
 fn shutdown_signal() -> Result<impl Future<Output = ()>> {
     Ok(async {
-        let _ = tokio::signal::ctrl_c().await;
+        if let Err(err) = tokio::signal::ctrl_c().await {
+            tracing::warn!(%err, "cannot watch for Ctrl+C");
+            std::future::pending::<()>().await;
+        }
     })
 }
 

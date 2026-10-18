@@ -93,3 +93,56 @@ async fn answers_over_udp_and_tcp() {
 fn dev_daemon_listens_apart_from_the_installed_helper() {
     assert_ne!(DEV_ADDR.port(), DEFAULT_ADDR.port());
 }
+
+#[tokio::test]
+async fn serves_once_a_taken_port_is_free() {
+    let squatter = UdpSocket::bind("127.0.0.1:0").await.expect("binds");
+    let addr = squatter.local_addr().expect("addr");
+    let (stop, stopped) = watch::channel(false);
+    let server = tokio::spawn(Sinkhole::serve_on(
+        addr,
+        blocking(&["youtube.com"]),
+        stopped,
+        Duration::from_millis(20),
+    ));
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!server.is_finished(), "a taken port is no reason to stop");
+    drop(squatter);
+
+    let client = UdpSocket::bind("127.0.0.1:0").await.expect("binds");
+    let mut buf = [0u8; 512];
+    let answered = timeout(Duration::from_secs(5), async {
+        loop {
+            client
+                .send_to(&query(7, "youtube.com", 1), addr)
+                .await
+                .expect("sends");
+            if let Ok(Ok(len)) = timeout(Duration::from_millis(50), client.recv(&mut buf)).await {
+                return len;
+            }
+        }
+    })
+    .await
+    .expect("answers once bound");
+    assert!(buf[..answered].ends_with(&[0, 0, 0, 0]));
+
+    stop.send(true).expect("running");
+    server.await.expect("stops");
+}
+
+#[tokio::test]
+async fn stops_while_waiting_for_a_taken_port() {
+    let squatter = UdpSocket::bind("127.0.0.1:0").await.expect("binds");
+    let (stop, stopped) = watch::channel(false);
+    let server = tokio::spawn(Sinkhole::serve_on(
+        squatter.local_addr().expect("addr"),
+        Blocked::default(),
+        stopped,
+        Duration::from_secs(60),
+    ));
+    stop.send(true).expect("running");
+    timeout(Duration::from_secs(5), server)
+        .await
+        .expect("stops promptly")
+        .expect("no panic");
+}
