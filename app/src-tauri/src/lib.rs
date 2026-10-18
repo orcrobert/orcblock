@@ -4,14 +4,13 @@
 mod favicon;
 mod helper;
 
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
 use orcblock_core::{BlockDuration, Domain};
 use orcblock_ipc::codec::CodecError;
-use orcblock_ipc::{Client, ClientError, DEFAULT_SOCKET, ErrorKind, Status};
+use orcblock_ipc::{Client, ClientError, Endpoint, ErrorKind, Status, default_endpoint};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -183,9 +182,11 @@ pub fn run() {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .init();
-    let socket = std::env::var_os("ORCBLOCK_SOCKET").map(PathBuf::from);
+    let socket = std::env::var("ORCBLOCK_SOCKET")
+        .ok()
+        .and_then(|socket| socket.parse::<Endpoint>().ok());
     let dev = socket.is_some();
-    let client = Client::new(socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET)));
+    let client = Client::new(socket.unwrap_or_else(default_endpoint));
 
     let result = tauri::Builder::default()
         .setup(move |app| {

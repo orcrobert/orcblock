@@ -27,7 +27,7 @@ fn main() {
 /// Bakes the SHA-256 of the bundled daemon into the app. The install runs
 /// only a copy whose hash matches, so a helper swapped inside the
 /// user-writable bundle is never started as root. The sidecar is
-/// `binaries/orcblockd-<target>`, where `ORCBLOCK_HELPER_TARGET` overrides
+/// `binaries/orcblockd-<target>` (`.exe` on Windows), where `ORCBLOCK_HELPER_TARGET` overrides
 /// the build target. Empty without a sidecar (plain dev builds), which
 /// leaves install disabled; with the override set the sidecar must exist.
 fn pin_helper() {
@@ -39,7 +39,12 @@ fn pin_helper() {
         .clone()
         .or_else(|| std::env::var("TARGET").ok())
         .unwrap_or_default();
-    let sidecar = PathBuf::from(format!("binaries/orcblockd-{target}"));
+    let suffix = if target.contains("windows") {
+        ".exe"
+    } else {
+        ""
+    };
+    let sidecar = PathBuf::from(format!("binaries/orcblockd-{target}{suffix}"));
     println!("cargo:rerun-if-changed={}", sidecar.display());
     let bytes = match std::fs::read(&sidecar) {
         Ok(bytes) => Some(bytes),
