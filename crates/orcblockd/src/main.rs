@@ -59,6 +59,10 @@ struct ServeArgs {
     dns_addr: Option<SocketAddr>,
 }
 
+/// The exit code of an uninstall refused during a block, which the Windows
+/// uninstaller (app/src-tauri/windows/hooks.nsh) waits for.
+const EXIT_BLOCKING: u8 = 3;
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     // Only the installed daemon writes the log: install runs before the data
@@ -75,7 +79,10 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             error!("{err:#}");
-            ExitCode::FAILURE
+            match err.downcast_ref() {
+                Some(install::InstallError::Blocking(_)) => ExitCode::from(EXIT_BLOCKING),
+                _ => ExitCode::FAILURE,
+            }
         }
     }
 }
@@ -109,6 +116,26 @@ fn require_root() -> Result<()> {
 #[cfg(windows)]
 fn require_root() -> Result<()> {
     Ok(install::windows::require_elevation(&SystemRunner)?)
+}
+
+#[cfg(unix)]
+fn live_data_dir(layout: &Layout) -> Result<()> {
+    fs::create_dir_all(layout.data_dir()).context("create the data directory")
+}
+
+/// Only install creates the data directory on Windows: one made here would
+/// let users add files until locked. An unlocked one stops the daemon,
+/// leaving the rules of any block in place, until an install fixes it.
+#[cfg(windows)]
+fn live_data_dir(layout: &Layout) -> Result<()> {
+    let dir = layout.data_dir();
+    if !install::windows::is_locked_dir(&SystemRunner, &dir) {
+        anyhow::bail!(
+            "{} is missing or not locked down; reinstall OrcBlock",
+            dir.display()
+        );
+    }
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -158,32 +185,33 @@ fn serve(args: ServeArgs) -> Result<()> {
             store,
             DryRunEnforcer::default(),
             Mode::DryRun,
-            &socket,
+            socket,
             args.dns_addr.unwrap_or(dns::DEV_ADDR),
         )
     } else {
         require_root()?;
         let layout = Layout::system();
-        fs::create_dir_all(layout.data_dir()).context("create the data directory")?;
+        live_data_dir(&layout)?;
         let dns_addr = args.dns_addr.unwrap_or(dns::DEFAULT_ADDR);
         run_daemon(
             Store::new(layout.state_file()),
             live_enforcer(&layout, dns_addr),
             Mode::Live,
-            &live_socket(&layout),
+            live_socket(&layout),
             dns_addr,
         )
     }
 }
 
-/// How often to retry binding the sinkhole while its port is taken.
-const DNS_RETRY: Duration = Duration::from_secs(5);
+/// How often to retry binding the control socket or the sinkhole while
+/// another process holds it.
+const RETRY: Duration = Duration::from_secs(5);
 
 fn run_daemon<E: Enforcer + 'static>(
     store: Store,
     enforcer: E,
     mode: Mode,
-    socket: &Endpoint,
+    socket: Endpoint,
     dns_addr: SocketAddr,
 ) -> Result<()> {
     let runtime = tokio::runtime::Runtime::new().context("start the async runtime")?;
@@ -195,19 +223,14 @@ fn run_daemon<E: Enforcer + 'static>(
 
     runtime.block_on(async {
         let (stop_dns, dns_stopped) = watch::channel(false);
-        let dns = tokio::spawn(Sinkhole::serve_on(
-            dns_addr,
-            blocked,
-            dns_stopped,
-            DNS_RETRY,
-        ));
-        let listener =
-            server::bind(socket).with_context(|| format!("listen on {}", display(socket)))?;
-        server::run(service, listener, shutdown_signal()?).await;
+        let dns = tokio::spawn(Sinkhole::serve_on(dns_addr, blocked, dns_stopped, RETRY));
+        #[cfg(unix)]
+        let socket_file = socket.clone();
+        server::run_on(service, socket, RETRY, shutdown_signal()?).await;
         let _ = stop_dns.send(true);
         let _ = dns.await;
         #[cfg(unix)]
-        let _ = fs::remove_file(socket);
+        let _ = fs::remove_file(socket_file);
         Ok(())
     })
 }
@@ -240,16 +263,6 @@ fn shutdown_signal() -> Result<impl Future<Output = ()>> {
             std::future::pending::<()>().await;
         }
     })
-}
-
-#[cfg(unix)]
-fn display(socket: &Endpoint) -> String {
-    socket.display().to_string()
-}
-
-#[cfg(windows)]
-fn display(socket: &Endpoint) -> String {
-    socket.to_string()
 }
 
 fn run_install() -> Result<()> {

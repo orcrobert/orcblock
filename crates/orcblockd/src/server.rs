@@ -93,9 +93,76 @@ pub async fn run<C, E>(
     C: Clock + 'static,
     E: Enforcer + 'static,
 {
+    run_with(service, |_| async move { Some(listener) }, shutdown).await;
+}
+
+/// Like [`run`], but binds `endpoint` itself, retrying every `retry` while
+/// that fails. Any local process may take the port while the daemon
+/// restarts; the block keeps counting down and its enforcement stays
+/// verified meanwhile.
+pub async fn run_on<C, E>(
+    service: Service<C, E>,
+    endpoint: Endpoint,
+    retry: Duration,
+    shutdown: impl Future<Output = ()>,
+) where
+    C: Clock + 'static,
+    E: Enforcer + 'static,
+{
+    run_with(
+        service,
+        move |stopped| bind_retrying(endpoint, retry, stopped),
+        shutdown,
+    )
+    .await;
+}
+
+async fn bind_retrying(
+    endpoint: Endpoint,
+    retry: Duration,
+    mut stopped: watch::Receiver<bool>,
+) -> Option<Listener> {
+    let mut failing = false;
+    loop {
+        match bind(&endpoint) {
+            Ok(listener) => {
+                if failing {
+                    info!(?endpoint, "listening");
+                }
+                return Some(listener);
+            }
+            Err(err) if !failing => {
+                error!(%err, ?endpoint, "cannot listen; retrying");
+                failing = true;
+            }
+            Err(_) => {}
+        }
+        tokio::select! {
+            () = sleep(retry) => {}
+            _ = stopped.changed() => return None,
+        }
+    }
+}
+
+async fn run_with<C, E, L, F>(service: Service<C, E>, listen: L, shutdown: impl Future<Output = ()>)
+where
+    C: Clock + 'static,
+    E: Enforcer + 'static,
+    L: FnOnce(watch::Receiver<bool>) -> F,
+    F: Future<Output = Option<Listener>> + Send + 'static,
+{
     let service = Arc::new(Mutex::new(service));
     let (stop, stopped) = watch::channel(false);
-    let server = tokio::spawn(serve(listener, Arc::clone(&service), stopped.clone()));
+    let listening = listen(stopped.clone());
+    let server = tokio::spawn({
+        let service = Arc::clone(&service);
+        let stopped = stopped.clone();
+        async move {
+            if let Some(listener) = listening.await {
+                serve(listener, service, stopped).await;
+            }
+        }
+    });
     let ticker = tokio::spawn(tick_loop(Arc::clone(&service), stopped));
     info!("orcblockd ready");
 

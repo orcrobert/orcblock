@@ -6,13 +6,14 @@
   nsExec::ExecToLog '"$INSTDIR\orcblockd.exe" install'
 !macroend
 
-; The helper refuses to uninstall while a block runs. The uninstaller then
-; stops before removing anything, so the app stays to uninstall the helper
-; once the block ends, and uninstalling never ends a block.
+; The helper refuses to uninstall while a block runs and exits with 3
+; (EXIT_BLOCKING in orcblockd). The uninstaller then stops before removing
+; anything, so the app stays to uninstall the helper once the block ends,
+; and uninstalling never ends a block. Other failures do not keep the app.
 !macro NSIS_HOOK_PREUNINSTALL
   nsExec::ExecToLog '"$INSTDIR\orcblockd.exe" uninstall'
   Pop $0
-  StrCmp $0 "0" +3
+  StrCmp $0 "3" 0 +3
     MessageBox MB_OK|MB_ICONSTOP "OrcBlock cannot be removed while a block is running. Try again once it ends." /SD IDOK
     Abort
 !macroend

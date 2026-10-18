@@ -137,3 +137,80 @@ async fn hangs_up_on_a_line_that_is_not_a_request() {
     stop.send(()).expect("daemon running");
     daemon.await.expect("daemon stops");
 }
+
+/// Takes `endpoint` so the daemon cannot bind it.
+#[cfg(unix)]
+fn squat(endpoint: &Endpoint) -> std::io::Result<std::fs::File> {
+    std::fs::File::create(endpoint)
+}
+
+#[cfg(unix)]
+fn release(squatter: std::fs::File, endpoint: &Endpoint) -> std::io::Result<()> {
+    drop(squatter);
+    std::fs::remove_file(endpoint)
+}
+
+/// Takes `endpoint` so the daemon cannot bind it.
+#[cfg(windows)]
+fn squat(endpoint: &Endpoint) -> std::io::Result<std::net::TcpListener> {
+    std::net::TcpListener::bind(endpoint)
+}
+
+#[cfg(windows)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "same signature as the Unix version"
+)]
+fn release(squatter: std::net::TcpListener, _endpoint: &Endpoint) -> std::io::Result<()> {
+    drop(squatter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn serves_once_a_taken_endpoint_is_free() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let socket = endpoint(dir.path());
+    let service = Service::start(
+        Store::new(dir.path().join("state.json")),
+        SystemClock::new(),
+        DryRunEnforcer::default(),
+        Blocked::default(),
+        Mode::DryRun,
+    )
+    .expect("starts");
+    let client = Client::new(socket).with_timeout(Duration::from_secs(1));
+    let socket = client.clone().socket().to_owned();
+    let squatter = squat(&socket).expect("squats");
+    let (stop, stopped) = oneshot::channel::<()>();
+    let daemon = tokio::spawn(server::run_on(
+        service,
+        client.socket().to_owned(),
+        Duration::from_millis(20),
+        async {
+            let _ = stopped.await;
+        },
+    ));
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(
+        !daemon.is_finished(),
+        "a taken endpoint is no reason to stop"
+    );
+    release(squatter, &socket).expect("frees");
+
+    let status = tokio::task::spawn_blocking(move || {
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            match client.status() {
+                Ok(status) => return status,
+                Err(err) if std::time::Instant::now() > deadline => panic!("{err}"),
+                Err(_) => std::thread::sleep(Duration::from_millis(20)),
+            }
+        }
+    })
+    .await
+    .expect("client");
+    assert_eq!(status.mode, Mode::DryRun);
+
+    stop.send(()).expect("daemon running");
+    daemon.await.expect("daemon stops");
+}
