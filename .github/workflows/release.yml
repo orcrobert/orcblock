@@ -104,6 +104,7 @@ jobs:
       - name: Versions agree
         run: sh scripts/release-version.sh "$TAG"
       - run: npm ci --prefix app
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: sh scripts/bundle-windows.sh
       - name: Release files

@@ -1,6 +1,6 @@
 # 0003: Windows support
 
-Status: draft (maintainer's goal, 2026-10-18: "get this thing working on windows too")
+Status: implemented, awaiting the first Windows CI run (maintainer's goal, 2026-10-18: "get this thing working on windows too")
 
 ## Problem
 OrcBlock only runs on macOS. The core, the protocol, the CLI and the UI are portable, but the daemon talks to launchd, `/etc/resolver`, pf and a Unix socket, and the app installs its helper through an AppleScript password prompt. Windows users cannot use it at all.
@@ -60,7 +60,7 @@ Files on a Windows PC:
 
 ## Bypass and safety
 - **Local TCP instead of a socket file**: any local process can connect, as with the 0666 socket on macOS; the only request that ends a block costs a potion. A web page can make the browser connect to 127.0.0.1 but its first line is an HTTP request line, which never decodes, and the connection is closed on the first undecodable line.
-- **Port squatting**: a user process that binds 47811 before the daemon makes the daemon exit and the task retry; enforcement (NRPT and firewall rules) stays in place, so the block holds and is only stricter. Binding 53 first would stop the sinkhole answering; lookups for blocked names then fail, which also blocks.
+- **Port squatting**: any process may bind loopback ports below 1024 on Windows. One that holds 127.0.0.1:53 while the daemon restarts (an update, a crash) and answers truthfully unblocks lookups for as long as it runs; the daemon keeps counting the block down, keeps the rules in place and retries the bind every 5 seconds, so the block resumes when the port frees. The task starts at boot, before anyone logs in, which makes the window small. One that holds 47811 makes the app and CLI talk to it instead; it can lie to them but cannot end a block. Binding exclusively (`SO_EXCLUSIVEADDRUSE`) needs a dependency and is a follow-up.
 - **State and helper tampering**: the helper lives under Program Files and the state under a ProgramData folder that `install` locks (owner SYSTEM, inheritance removed, Users read only, not recursive). Any user can create that folder first, so `install` keeps an existing one only if it is a real directory whose SDDL shows it locked; otherwise it moves the folder aside and makes a new one, and fails if files appear in the new one before it is locked. Only the installed daemon writes the log there.
 - **Clock**: QueryPerformanceCounter includes sleep on current Windows. If it did not, blocks would last longer, never shorter. Restart credit is the same clamped wall-clock credit as on macOS.
 - **Commands**: every program is called by absolute path under `C:\Windows\System32`; PowerShell only runs two constant scripts; domains reach it on stdin, already parsed as `Domain`, and are validated again by the script.

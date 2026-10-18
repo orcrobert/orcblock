@@ -81,5 +81,5 @@ Read this file before any task. Details live in docs/; open them only when relev
 - macOS reads /etc/resolver/<domain> through mDNSResponder; flush with `dscacheutil -flushcache` and `killall -HUP mDNSResponder` after changes, or old answers linger.
 - pf rules live under the `com.apple/orcblock` anchor because /etc/pf.conf already loads `com.apple/*`; never edit /etc/pf.conf.
 - The daemon measures block time with a monotonic clock while running; wall-clock jumps must not shorten a block. See docs/architecture.md, "Time".
-- Windows: NRPT rules cannot name a port, so the sinkhole binds 127.0.0.1:53 there. PowerShell only ever gets the constant scripts in `enforce/windows.rs` as `-EncodedCommand`, with data on stdin; never put a domain in a command line. Paths and task names in `Layout` use `/` and are joined per component, so tests can root them under a temp dir.
+- Windows: NRPT rules cannot name a port, so the sinkhole binds 127.0.0.1:53 there. PowerShell only ever gets the constant scripts in `enforce/windows.rs` as `-EncodedCommand`, with data on stdin; never put a domain in a command line. Paths in `Layout` use `/` and are joined per component, so tests can root them under a temp dir.
 - Tauri commands run on the async runtime; the IPC client is blocking, so call it through `tauri::async_runtime::spawn_blocking`.

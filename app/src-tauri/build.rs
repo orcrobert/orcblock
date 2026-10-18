@@ -28,8 +28,9 @@ fn main() {
 /// only a copy whose hash matches, so a helper swapped inside the
 /// user-writable bundle is never started as root. The sidecar is
 /// `binaries/orcblockd-<target>` (`.exe` on Windows), where
-/// `ORCBLOCK_HELPER_TARGET` overrides the build target. Empty without a sidecar (plain dev builds), which
-/// leaves install disabled; with the override set the sidecar must exist.
+/// `ORCBLOCK_HELPER_TARGET` overrides the build target. Empty without a
+/// sidecar (plain dev builds), which leaves install disabled; with the
+/// override set the sidecar must exist.
 fn pin_helper() {
     // A universal build compiles the app once per architecture, but the
     // bundle ships the fat helper, so `make bundle-universal` names it here.

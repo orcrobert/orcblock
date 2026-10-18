@@ -19,7 +19,9 @@ ADR 0002 puts a root daemon in charge of blocks and enforces them through per-do
 
 - One UAC prompt, during installation.
 - A verify every 15 s starts PowerShell (about half a second of CPU). Acceptable for now; reading the NRPT registry keys directly is the optimization if it matters.
-- Port 53 on 127.0.0.1 must be free; a resolver such as a local DNS proxy that already holds it stops the daemon from starting.
+- Port 53 on 127.0.0.1 must be free; while a local DNS proxy or any other process holds it, the daemon keeps counting down and keeps its rules but retries the bind, and lookups go to whatever holds the port.
+- When Group Policy defines any NRPT rule (DirectAccess, some VPNs), Windows ignores local NRPT rules, so blocking does not work on such machines. Detecting this and saying so is a follow-up.
+- `base64` (already allowed for the app) enters the daemon's tree to encode `-EncodedCommand`.
 - Existing connections are not killed at block start.
 - An administrator can delete the task, the rules or turn the firewall off. As on macOS, the goal is a deliberate, slow path out, not prevention.
 - A Network Extension equivalent (a WFP callout driver) stays out of reach without signing; this ADR covers unsigned builds.

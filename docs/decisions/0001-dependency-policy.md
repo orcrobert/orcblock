@@ -10,7 +10,7 @@ OrcBlock installs a daemon that runs as root on people's Macs. Every dependency 
 
 - Direct dependencies, Rust and npm, are allowlisted below. `scripts/check-deps.sh` (run by `make check`) fails on anything else, and on crates that declare dependencies without `{ workspace = true }`.
 - Adding one needs a new ADR (or an amendment here) that says what it replaces, its size, maintenance status and licence, approved by the maintainer. Agents never add one on their own.
-- Transitive dependencies are governed by `cargo deny` (deny.toml): licences, RustSec advisories, yanked crates and registries. The daemon's dependency tree is kept small on purpose: core, ipc, tokio, tracing, jiff, nix.
+- Transitive dependencies are governed by `cargo deny` (deny.toml): licences, RustSec advisories, yanked crates and registries. The daemon's dependency tree is kept small on purpose: core, ipc, tokio, tracing, jiff, nix (Unix only), base64 (Windows PowerShell commands, ADR 0005).
 - Versions live once in `[workspace.dependencies]`; `Cargo.lock` and `app/package-lock.json` are committed.
 
 ### Allowlist
@@ -30,7 +30,7 @@ OrcBlock installs a daemon that runs as root on people's Macs. Every dependency 
 - `tauri`: the desktop app framework (ADR 0004).
 - `tauri-build`: Tauri's build script.
 - `ureq`: small blocking HTTPS client for favicons.
-- `base64`: favicon data URLs.
+- `base64`: favicon data URLs; PowerShell `-EncodedCommand` in the daemon on Windows.
 - `sha2`: stable favicon cache file names.
 - `proptest`: property tests (dev only).
 - `tempfile`: temp dirs in tests (dev only).
