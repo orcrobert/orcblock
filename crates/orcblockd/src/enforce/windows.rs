@@ -22,7 +22,7 @@ use super::runner::CommandRunner;
 use super::{EnforceError, Enforcer, doh};
 use crate::dns::CANARIES;
 
-const POWERSHELL: &str = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+pub(crate) const POWERSHELL: &str = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
 
 /// Where NRPT rules send lookups. NRPT has no port, so the sinkhole listens
 /// on 53 on Windows.
@@ -231,27 +231,9 @@ impl<R: CommandRunner> WinEnforcer<R> {
         Self { runner }
     }
 
-    fn powershell(&self, script: &str, stdin: Option<&str>) -> Result<String, EnforceError> {
-        self.runner
-            .run(
-                POWERSHELL,
-                &[
-                    "-NoLogo",
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-EncodedCommand",
-                    &encode_command(script),
-                ],
-                stdin,
-            )
-            .map(|output| output.stdout)
-    }
-
     /// Brings the system in line and returns whether anything changed.
     fn sync(&self, wanted: &BTreeSet<String>, firewall: bool) -> Result<bool, EnforceError> {
-        let observed = parse_status(&self.powershell(STATUS_SCRIPT, None)?);
+        let observed = parse_status(&powershell(&self.runner, STATUS_SCRIPT, None)?);
         let ops = plan(&observed, wanted, firewall);
         if ops.is_empty() {
             return Ok(false);
@@ -261,10 +243,34 @@ impl<R: CommandRunner> WinEnforcer<R> {
             let _ = writeln!(input, "{op}");
             input
         });
-        self.powershell(APPLY_SCRIPT, Some(&input))?;
+        powershell(&self.runner, APPLY_SCRIPT, Some(&input))?;
         info!(steps = ops.len(), "NRPT and firewall rules updated");
         Ok(true)
     }
+}
+
+/// Runs a constant `script` through `runner`, feeding it `stdin`, and
+/// returns what it printed.
+pub(crate) fn powershell(
+    runner: &impl CommandRunner,
+    script: &str,
+    stdin: Option<&str>,
+) -> Result<String, EnforceError> {
+    runner
+        .run(
+            POWERSHELL,
+            &[
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-EncodedCommand",
+                &encode_command(script),
+            ],
+            stdin,
+        )
+        .map(|output| output.stdout)
 }
 
 /// A script as `-EncodedCommand` expects it: base64 of UTF-16LE.
