@@ -1,5 +1,4 @@
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixListener;
 use std::thread;
 
 use jiff::Timestamp;
@@ -8,10 +7,46 @@ use orcblock_core::{Month, State};
 use super::*;
 use crate::Mode;
 
-/// Serves one connection: records the request line and answers with `reply`.
-fn serve_once(reply: Option<Response>) -> (tempfile::TempDir, thread::JoinHandle<String>) {
+/// A listener on a fresh endpoint, kept alive by the returned guard.
+#[cfg(unix)]
+fn listen() -> (
+    tempfile::TempDir,
+    Endpoint,
+    std::os::unix::net::UnixListener,
+) {
     let dir = tempfile::tempdir().expect("temp dir");
-    let listener = UnixListener::bind(dir.path().join("d.sock")).expect("binds");
+    let endpoint = dir.path().join("d.sock");
+    let listener = std::os::unix::net::UnixListener::bind(&endpoint).expect("binds");
+    (dir, endpoint, listener)
+}
+
+/// A listener on a fresh endpoint.
+#[cfg(windows)]
+fn listen() -> ((), Endpoint, std::net::TcpListener) {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let endpoint = listener.local_addr().expect("bound");
+    ((), endpoint, listener)
+}
+
+/// An endpoint nothing listens on.
+#[cfg(unix)]
+fn nobody() -> (tempfile::TempDir, Endpoint) {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let endpoint = dir.path().join("none.sock");
+    (dir, endpoint)
+}
+
+/// An endpoint nothing listens on.
+#[cfg(windows)]
+fn nobody() -> ((), Endpoint) {
+    let ((), endpoint, listener) = listen();
+    drop(listener);
+    ((), endpoint)
+}
+
+/// Serves one connection: records the request line and answers with `reply`.
+fn serve_once(reply: Option<Response>) -> (impl Sized, Endpoint, thread::JoinHandle<String>) {
+    let (guard, endpoint, listener) = listen();
     let handle = thread::spawn(move || {
         let (stream, _) = listener.accept().expect("accepts");
         let mut reader = BufReader::new(stream);
@@ -25,7 +60,7 @@ fn serve_once(reply: Option<Response>) -> (tempfile::TempDir, thread::JoinHandle
         }
         request
     });
-    (dir, handle)
+    (guard, endpoint, handle)
 }
 
 fn status() -> Status {
@@ -41,8 +76,8 @@ fn status() -> Status {
 
 #[test]
 fn returns_the_status() {
-    let (dir, server) = serve_once(Some(Response::Ok { status: status() }));
-    let client = Client::new(dir.path().join("d.sock"));
+    let (_guard, endpoint, server) = serve_once(Some(Response::Ok { status: status() }));
+    let client = Client::new(endpoint);
     assert_eq!(client.add_site("youtube.com").expect("ok"), status());
     assert_eq!(
         server.join().expect("server"),
@@ -53,10 +88,8 @@ fn returns_the_status() {
 #[test]
 fn surfaces_refusals() {
     let refusal = Response::error(ErrorKind::NotBlocking, "No block is running");
-    let (dir, server) = serve_once(Some(refusal));
-    let err = Client::new(dir.path().join("d.sock"))
-        .drink_potion()
-        .expect_err("refused");
+    let (_guard, endpoint, server) = serve_once(Some(refusal));
+    let err = Client::new(endpoint).drink_potion().expect_err("refused");
     assert!(
         matches!(
             err,
@@ -73,19 +106,27 @@ fn surfaces_refusals() {
 
 #[test]
 fn reports_a_hang_up() {
-    let (dir, server) = serve_once(None);
-    let err = Client::new(dir.path().join("d.sock"))
-        .status()
-        .expect_err("closed");
+    let (_guard, endpoint, server) = serve_once(None);
+    let err = Client::new(endpoint).status().expect_err("closed");
     assert!(matches!(err, ClientError::Closed), "{err:?}");
     server.join().expect("server");
 }
 
 #[test]
 fn missing_socket_is_unavailable() {
-    let dir = tempfile::tempdir().expect("temp dir");
-    let err = Client::new(dir.path().join("none.sock"))
-        .status()
-        .expect_err("no daemon");
+    let (_guard, endpoint) = nobody();
+    let err = Client::new(endpoint).status().expect_err("no daemon");
     assert!(matches!(err, ClientError::Unavailable(_)), "{err:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn default_endpoint_is_default_socket() {
+    assert_eq!(default_endpoint(), Endpoint::from(DEFAULT_SOCKET));
+}
+
+#[cfg(windows)]
+#[test]
+fn default_endpoint_is_default_socket() {
+    assert_eq!(default_endpoint().to_string(), DEFAULT_SOCKET);
 }

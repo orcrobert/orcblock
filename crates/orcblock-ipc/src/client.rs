@@ -1,6 +1,8 @@
 use std::io::{self, BufReader, Write};
+#[cfg(windows)]
+use std::net::TcpStream;
+#[cfg(unix)]
 use std::os::unix::net::UnixStream;
-use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use orcblock_core::BlockDuration;
@@ -8,8 +10,22 @@ use orcblock_core::BlockDuration;
 use crate::codec::{self, CodecError};
 use crate::{Command, ErrorKind, Request, Response, Status};
 
+/// Where a daemon listens: a Unix socket path.
+#[cfg(unix)]
+pub type Endpoint = std::path::PathBuf;
+
+/// Where a daemon listens: a loopback TCP address, because Windows has no
+/// Unix sockets in the standard library (ADR 0005).
+#[cfg(windows)]
+pub type Endpoint = std::net::SocketAddr;
+
 /// Where the installed daemon listens.
+#[cfg(unix)]
 pub const DEFAULT_SOCKET: &str = "/var/run/orcblockd.sock";
+
+/// Where the installed daemon listens.
+#[cfg(windows)]
+pub const DEFAULT_SOCKET: &str = "127.0.0.1:47811";
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -17,7 +33,7 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 /// connection, so a `Client` is cheap to clone and share across threads.
 #[derive(Debug, Clone)]
 pub struct Client {
-    socket: PathBuf,
+    socket: Endpoint,
     timeout: Duration,
 }
 
@@ -48,13 +64,22 @@ pub enum ClientError {
 
 impl Default for Client {
     fn default() -> Self {
-        Self::new(DEFAULT_SOCKET)
+        Self::new(default_endpoint())
     }
+}
+
+/// [`DEFAULT_SOCKET`] as an [`Endpoint`].
+#[must_use]
+pub fn default_endpoint() -> Endpoint {
+    #[cfg(unix)]
+    return Endpoint::from(DEFAULT_SOCKET);
+    #[cfg(windows)]
+    return std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 47811));
 }
 
 impl Client {
     /// A client for the daemon listening at `socket`.
-    pub fn new(socket: impl Into<PathBuf>) -> Self {
+    pub fn new(socket: impl Into<Endpoint>) -> Self {
         Self {
             socket: socket.into(),
             timeout: DEFAULT_TIMEOUT,
@@ -70,7 +95,7 @@ impl Client {
 
     /// The socket this client connects to.
     #[must_use]
-    pub fn socket(&self) -> &Path {
+    pub fn socket(&self) -> &Endpoint {
         &self.socket
     }
 
@@ -107,7 +132,7 @@ impl Client {
 
     /// Sends one command and waits for the answer.
     pub fn send(&self, command: Command) -> Result<Status, ClientError> {
-        let mut stream = UnixStream::connect(&self.socket).map_err(ClientError::Unavailable)?;
+        let mut stream = self.connect().map_err(ClientError::Unavailable)?;
         stream.set_read_timeout(Some(self.timeout))?;
         stream.set_write_timeout(Some(self.timeout))?;
         stream.write_all(&codec::encode(&Request::new(command))?)?;
@@ -121,6 +146,16 @@ impl Client {
             Response::Ok { status } => Ok(status),
             Response::Error { kind, message } => Err(ClientError::Refused { kind, message }),
         }
+    }
+
+    #[cfg(unix)]
+    fn connect(&self) -> io::Result<UnixStream> {
+        UnixStream::connect(&self.socket)
+    }
+
+    #[cfg(windows)]
+    fn connect(&self) -> io::Result<TcpStream> {
+        TcpStream::connect_timeout(&self.socket, self.timeout)
     }
 }
 
