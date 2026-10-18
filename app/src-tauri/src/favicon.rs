@@ -125,7 +125,8 @@ fn fetch(http: &impl Http, domain: &Domain) -> Result<Vec<u8>, Failure> {
 }
 
 /// The well-known icon paths, then the icons the home page links to. The
-/// site counts as unreachable only when no request got an answer.
+/// site counts as unreachable when no request got an answer, or when the
+/// page linked icons that could not be reached (a blocked or offline CDN).
 fn fetch_from(http: &impl Http, host: &str) -> Result<Vec<u8>, Failure> {
     let tried = ICON_PATHS.map(|path| format!("https://{host}{path}"));
     let mut answered = false;
@@ -140,13 +141,20 @@ fn fetch_from(http: &impl Http, host: &str) -> Result<Vec<u8>, Failure> {
         return Err(Failure::Unreachable);
     }
     let (page, html) = http.get(format!("https://{host}/"), Body::Prefix)?;
-    icon_links(&String::from_utf8_lossy(&html))
+    let mut failure = Failure::Missing;
+    for url in icon_links(&String::from_utf8_lossy(&html))
         .iter()
         .filter_map(|href| resolve(&page, href))
         .filter(|url| !tried.contains(url))
         .take(MAX_LINKS)
-        .find_map(|url| icon(http, url).ok())
-        .ok_or(Failure::Missing)
+    {
+        match icon(http, url) {
+            Ok(bytes) => return Ok(bytes),
+            Err(Failure::Unreachable) => failure = Failure::Unreachable,
+            Err(Failure::Missing) => {}
+        }
+    }
+    Err(failure)
 }
 
 fn icon(http: &impl Http, url: String) -> Result<Vec<u8>, Failure> {
