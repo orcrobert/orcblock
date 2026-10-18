@@ -2352,6 +2352,7 @@ dependencies = [
  "base64 0.23.1",
  "orcblock-core",
  "orcblock-ipc",
+ "proptest",
  "serde",
  "serde_json",
  "sha2",
