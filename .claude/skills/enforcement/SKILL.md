@@ -28,3 +28,9 @@ Decision record: docs/decisions/0002-enforcement-daemon.md. The promise to keep:
 - Errors while enforcing are logged and retried on the next tick; they never clear the session.
 - Dev mode (`--dev`) uses `DryRunEnforcer`, which records calls; tests use it or a `FakeRunner`. Nothing in `make check` touches the system.
 - Any change here gets a security-reviewer pass with the "no way out" checklist.
+
+## Windows (`enforce::WinEnforcer`, ADR 0005)
+- NRPT rules (namespaces `.domain` and `domain`, name server `127.0.0.1`, comment `managed by orcblockd`) send lookups to the sinkhole on `127.0.0.1:53`; only marked rules are ever changed.
+- Four firewall rules in group `orcblockd` drop DNS-over-TLS (853) and HTTPS to `enforce::doh::RESOLVERS`.
+- PowerShell gets only the constant status and apply scripts as `-EncodedCommand`; operations go on stdin and the script validates them again. `plan` is pure and tested; `sync` reads, plans and applies.
+- Not yet: killing open connections at block start (spec 0003, out of scope).

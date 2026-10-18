@@ -33,4 +33,5 @@ What exists and what is next, in order. `/status` reads this file. Big items get
 ## 5. Later
 - [ ] Block apps as well as websites: the daemon watches launches during a block and terminates blocked bundle IDs (NSWorkspace notifications or Endpoint Security). Needs a spec and probably signing.
 - [ ] Network Extension content filter as the enforcement layer once signed (ADR 0002)
-- [ ] Windows and Linux daemons behind the same `Enforcer` trait
+- [x] Windows daemon behind the same `Enforcer` trait (spec 0003)
+- [ ] Linux daemon behind the same `Enforcer` trait

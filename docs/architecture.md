@@ -48,6 +48,21 @@ One JSON object per line in each direction (`{"v":1,"cmd":"add_site","site":"you
 - `app/src-tauri`: Tauri commands mirror the requests and call the blocking IPC client inside `spawn_blocking`. A background task polls status every 2 s (1 s while a block runs) and emits `status` events. Favicons are fetched once per domain (`https://<domain>/apple-touch-icon.png`, then `/favicon.ico`), checked by magic bytes, capped at 256 KB, cached in the app cache dir and returned as data URLs. If the daemon socket is missing, the UI shows the Setup screen, whose button runs the bundled `orcblockd install` through an admin prompt.
 - `app/src`: Svelte 5 UI. Swiss brutalist tokens in `theme.css` (see the ui-components skill), theme stored in `localStorage` (`system` by default). One window, 900 x 520, resizable only within narrow bounds. The orc is a 1-bit pixel sprite: frames in `lib/mascot/frames.ts`, played by `lib/mascot/Orc.svelte` in the theme's colours.
 
+## Windows
+
+The same crates build for `x86_64-pc-windows-msvc` (spec 0003, ADR 0005). What differs:
+
+- **Hosting**: a scheduled task `\OrcBlock\orcblockd` runs the helper as SYSTEM at boot and every 5 minutes if it is not running, instead of launchd. `install::windows` registers it with `schtasks` and locks the data directory with `icacls`.
+- **IPC**: loopback TCP on `127.0.0.1:47811` (dev `47812`) instead of a Unix socket; `orcblock_ipc::Endpoint` is a `SocketAddr` there. Any local process can connect, as with the 0666 socket on macOS; the server hangs up after the first line that is not a request, so a browser posting to the port gets nothing done.
+- **Enforcement**: `WinEnforcer` keeps one NRPT rule per blocked domain pointing at the sinkhole, which listens on `127.0.0.1:53` because NRPT name servers have no port, plus four firewall rules in group `orcblockd` that drop DNS-over-TLS and HTTPS to the DNS-over-HTTPS resolvers. It drives PowerShell with two constant scripts passed as `-EncodedCommand`; the operations go in on stdin, built only from `Domain`s and IP addresses, and the script checks them again.
+- **Time**: `Instant` (QueryPerformanceCounter), which keeps counting while Windows sleeps.
+
+| Path | Owner | What |
+| --- | --- | --- |
+| `C:\Program Files\OrcBlock\` | Administrators | The app and the bundled `orcblockd.exe`, from the per-machine NSIS installer. |
+| `C:\Program Files\OrcBlock Helper\orcblockd.exe` | Administrators | Installed daemon binary. |
+| `C:\ProgramData\OrcBlock\` | SYSTEM, users read only | `state.json`, `orcblockd.log` and the task definition. |
+
 ## Files on a user's Mac
 
 | Path | Owner | What |

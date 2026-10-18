@@ -15,18 +15,18 @@ OrcBlock only runs on macOS. The core, the protocol, the CLI and the UI are port
 7. The `orcblock` CLI works against the Windows helper.
 
 ## Acceptance criteria
-- [ ] Every crate compiles for `x86_64-pc-windows-msvc` with clippy clean, and `cargo test --workspace` passes on Windows in CI.
-- [ ] On Windows the daemon listens on `127.0.0.1:47811` (dev: `127.0.0.1:47812`); the client, CLI and app connect there by default; `--socket`/`ORCBLOCK_SOCKET` take an address.
-- [ ] The server drops a connection after the first undecodable line, so an HTTP request from a web page to the port never reaches a command.
-- [ ] `WinEnforcer` keeps one NRPT rule per blocked domain and canary (namespaces `.d` and `d`, name server `127.0.0.1`, comment `managed by orcblockd`) and four firewall rules in group `orcblockd` (TCP and UDP to port 853; TCP and UDP 443 to the DoH resolvers); it only removes rules it marked; verify repairs drift; clear removes everything; the DNS cache is flushed after changes. Tested with a fake runner.
-- [ ] The sinkhole listens on `127.0.0.1:53` on Windows (NRPT name servers have no port).
-- [ ] `orcblockd install` on Windows refuses without elevation, copies itself to `C:\Program Files\OrcBlock Helper\orcblockd.exe`, locks `C:\ProgramData\OrcBlock` to SYSTEM and Administrators (users read only), registers the `OrcBlock\orcblockd` scheduled task (SYSTEM, at boot, every 5 minutes if not running, no time limit) and starts it. `uninstall` is refused during a block. Tested with a fake runner under a temp root.
-- [ ] The monotonic clock on Windows comes from `Instant` (QueryPerformanceCounter).
-- [ ] The daemon logs to `C:\ProgramData\OrcBlock\orcblockd.log` on Windows.
-- [ ] The app finds `orcblockd.exe` next to itself, checks its pinned SHA-256 and runs `install` through UAC, mapping a cancelled prompt to "Installation cancelled".
-- [ ] The UI drops the traffic-light padding and uses Windows wording and log path on Windows; Segoe UI and Consolas are in the font stacks.
-- [ ] `scripts/bundle-windows.sh` builds a per-machine NSIS installer with the helper as a sidecar; its hooks install the helper after install and uninstall it before uninstall.
-- [ ] CI runs a Windows job (clippy, tests, bundle); a release publishes the Windows installer next to the dmg.
+- [ ] Every crate compiles for `x86_64-pc-windows-msvc` with clippy clean, and `cargo test --workspace` passes on Windows in CI. (Every crate but the app is clippy clean cross-compiled from macOS; the app and the tests wait for the first Windows CI run.)
+- [x] On Windows the daemon listens on `127.0.0.1:47811` (dev: `127.0.0.1:47812`); the client, CLI and app connect there by default; `--socket`/`ORCBLOCK_SOCKET` take an address.
+- [x] The server drops a connection after the first undecodable line, so an HTTP request from a web page to the port never reaches a command.
+- [x] `WinEnforcer` keeps one NRPT rule per blocked domain and canary (namespaces `.d` and `d`, name server `127.0.0.1`, comment `managed by orcblockd`) and four firewall rules in group `orcblockd` (TCP and UDP to port 853; TCP and UDP 443 to the DoH resolvers); it only removes rules it marked; verify repairs drift; clear removes everything; the DNS cache is flushed after changes. Tested with a fake runner.
+- [x] The sinkhole listens on `127.0.0.1:53` on Windows (NRPT name servers have no port).
+- [x] `orcblockd install` on Windows refuses without elevation, copies itself to `C:\Program Files\OrcBlock Helper\orcblockd.exe`, locks `C:\ProgramData\OrcBlock` to SYSTEM and Administrators (users read only), registers the `OrcBlock\orcblockd` scheduled task (SYSTEM, at boot, every 5 minutes if not running, no time limit) and starts it. `uninstall` is refused during a block. Tested with a fake runner under a temp root.
+- [x] The monotonic clock on Windows comes from `Instant` (QueryPerformanceCounter).
+- [x] The daemon logs to `C:\ProgramData\OrcBlock\orcblockd.log` on Windows.
+- [x] The app finds `orcblockd.exe` next to itself, checks its pinned SHA-256 and runs `install` through UAC, mapping a cancelled prompt to "Installation cancelled".
+- [x] The UI drops the traffic-light padding and uses Windows wording and log path on Windows; Segoe UI and Consolas are in the font stacks.
+- [x] `scripts/bundle-windows.sh` builds a per-machine NSIS installer with the helper as a sidecar; its hooks install the helper after install and uninstall it before uninstall.
+- [x] CI runs a Windows job (clippy, tests, bundle); a release publishes the Windows installer next to the dmg.
 
 ## Design
 See ADR 0005 for the choices.
