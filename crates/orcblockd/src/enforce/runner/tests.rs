@@ -32,3 +32,18 @@ fn a_program_that_hangs_is_killed() {
     assert!(err.to_string().contains("did not finish"), "{err}");
     assert!(started.elapsed() < Duration::from_secs(5));
 }
+
+#[test]
+fn a_program_that_never_reads_its_input_is_killed() {
+    let input = "x".repeat(1 << 20);
+    let started = Instant::now();
+    let err = run_with_timeout(
+        "/bin/sleep",
+        &["30"],
+        Some(&input),
+        Duration::from_millis(200),
+    )
+    .expect_err("times out");
+    assert!(err.to_string().contains("did not finish"), "{err}");
+    assert!(started.elapsed() < Duration::from_secs(5));
+}

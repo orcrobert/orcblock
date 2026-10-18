@@ -105,14 +105,14 @@ fn run_with_timeout(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|err| fail(format!("could not start: {err}")))?;
-    // Read both pipes while writing stdin, so a chatty program cannot
-    // block on a full pipe.
+    // Every pipe on its own thread, so neither a chatty program nor one that
+    // never reads its input can hold the runner past the deadline.
     let stdout = drain(child.stdout.take());
     let stderr = drain(child.stderr.take());
-    if let (Some(input), Some(mut pipe)) = (stdin, child.stdin.take()) {
-        pipe.write_all(input.as_bytes())
-            .map_err(|err| fail(format!("write stdin: {err}")))?;
-    }
+    let feeder = child.stdin.take().zip(stdin).map(|(mut pipe, input)| {
+        let input = input.to_owned();
+        thread::spawn(move || pipe.write_all(input.as_bytes()))
+    });
     let deadline = Instant::now() + timeout;
     let mut pause = Duration::from_millis(1);
     let status = loop {
@@ -133,6 +133,13 @@ fn run_with_timeout(
         thread::sleep(pause);
         pause = (pause * 2).min(Duration::from_millis(50));
     };
+    if let Some(feeder) = feeder {
+        match feeder.join() {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => return Err(fail(format!("write stdin: {err}"))),
+            Err(_) => return Err(fail("write stdin: the writer panicked".to_owned())),
+        }
+    }
     let text = |reader: thread::JoinHandle<Vec<u8>>| {
         String::from_utf8_lossy(&reader.join().unwrap_or_default()).into_owned()
     };
