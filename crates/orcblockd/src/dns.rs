@@ -21,10 +21,11 @@ use tracing::{debug, warn};
 use crate::Blocked;
 pub use wire::{Query, Rcode, RecordType};
 
-/// Where the sinkhole listens; resolver files name this port.
+/// Where the sinkhole listens; resolver files name this port. NRPT rules
+/// on Windows cannot name a port, so there it is the standard one.
 pub const DEFAULT_ADDR: SocketAddr = SocketAddr::V4(std::net::SocketAddrV4::new(
     std::net::Ipv4Addr::LOCALHOST,
-    53535,
+    if cfg!(windows) { 53 } else { 53535 },
 ));
 
 /// Where the sinkhole listens with `serve --dev`: a different port, so a dev

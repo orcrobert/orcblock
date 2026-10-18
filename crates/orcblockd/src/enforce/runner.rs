@@ -24,7 +24,24 @@ pub trait CommandRunner: Send {
     ) -> Result<Output, EnforceError>;
 }
 
-/// The real runner.
+/// System variables kept for programs on Windows.
+#[cfg(windows)]
+const WINDOWS_ENV: [&str; 7] = [
+    "SystemRoot",
+    "SystemDrive",
+    "windir",
+    "ProgramData",
+    "ProgramFiles",
+    "TEMP",
+    "TMP",
+];
+
+/// Starts a console program without opening a console window.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// The real runner. On Unix programs get an empty environment; on Windows
+/// only a fixed set of system variables.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SystemRunner;
 
@@ -39,9 +56,21 @@ impl CommandRunner for SystemRunner {
             program: program.to_owned(),
             reason,
         };
-        let mut child = Command::new(program)
-            .args(args)
-            .env_clear()
+        let mut command = Command::new(program);
+        command.args(args).env_clear();
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // PowerShell and other system tools fail without these; nothing
+            // else from the caller's environment is passed on.
+            for key in WINDOWS_ENV {
+                if let Some(value) = std::env::var_os(key) {
+                    command.env(key, value);
+                }
+            }
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        let mut child = command
             .stdin(if stdin.is_some() {
                 Stdio::piped()
             } else {
