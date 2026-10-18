@@ -218,7 +218,7 @@ impl Http for FakeHttp {
 fn fetches_from_paths_then_home_page_then_www() {
     const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
     const HOME: &[u8] = br#"<link rel="icon" href="https://cdn.test.net/i.png">"#;
-    let cases: [(&str, FakeHttp, Wanted); 6] = [
+    let cases: [(&str, FakeHttp, Wanted); 7] = [
         (
             "nothing answers",
             FakeHttp(vec![]),
@@ -258,6 +258,14 @@ fn fetches_from_paths_then_home_page_then_www() {
                 "https://example.com/favicon.ico",
                 Err(Failure::Missing),
             )]),
+            Err(Failure::Unreachable),
+        ),
+        (
+            "linked icon on an unreachable cdn: not a cached miss",
+            FakeHttp(vec![
+                ("https://example.com/favicon.ico", Err(Failure::Missing)),
+                ("https://example.com/", Ok(HOME)),
+            ]),
             Err(Failure::Unreachable),
         ),
         (
