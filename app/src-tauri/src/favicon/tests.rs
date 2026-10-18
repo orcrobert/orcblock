@@ -105,6 +105,12 @@ fn resolves_only_to_https_urls_on_public_host_names() {
         ("ipv6", "https://[::1]/a.ico", None),
         ("localhost", "https://localhost/a.ico", None),
         ("localhost subdomain", "https://x.localhost/a.ico", None),
+        ("localhost, upper case", "https://x.LOCALHOST/a.ico", None),
+        (
+            "localhost, default port",
+            "https://x.localhost:443/a.ico",
+            None,
+        ),
         (
             "localhost, trailing dot",
             "https://x.localhost./a.ico",
@@ -182,15 +188,23 @@ proptest::proptest! {
 
     #[test]
     fn resolves_only_to_https_on_a_public_name(
-        reference in "(https?:)?(//)?[a-z0-9x.:/?]{0,30}|\\PC*",
+        reference in concat!(
+            "(https?:)?//(0x[0-9a-f]{1,4}|[0-9]{1,4}|localhost|LocalHost|[a-z]{1,5})",
+            "(\\.(0x[0-9a-f]{1,4}|[0-9]{1,3}|localhost|[a-z]{1,5})){0,3}\\.?(:[0-9]{1,4})?/x",
+            "|(https?:)?(//)?[a-z0-9x.:/?]{0,30}|\\PC*",
+        ),
     ) {
         if let Some(url) = resolve("https://example.com/a", &reference) {
             let uri: ureq::http::Uri = url.parse().expect("resolved URLs parse");
             proptest::prop_assert_eq!(uri.scheme_str(), Some("https"));
             proptest::prop_assert!(uri.port_u16().is_none_or(|port| port == 443));
-            let host = uri.host().expect("resolved URLs have a host");
-            let domain = Domain::parse(host).expect("the host is a domain");
-            proptest::prop_assert!(is_public(&domain), "{}", url);
+            let host = uri.host().expect("resolved URLs have a host").to_ascii_lowercase();
+            // Every numeric IPv4 spelling the resolver accepts ends in a part
+            // that starts with a digit.
+            let last = host.rsplit('.').next().unwrap_or_default();
+            proptest::prop_assert!(!last.starts_with(|c: char| c.is_ascii_digit()), "{}", url);
+            proptest::prop_assert!(host.parse::<std::net::Ipv4Addr>().is_err(), "{}", url);
+            proptest::prop_assert!(!host.ends_with('.') && last != "localhost", "{}", url);
         }
     }
 }
@@ -218,7 +232,11 @@ impl Http for FakeHttp {
 fn fetches_from_paths_then_home_page_then_www() {
     const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
     const HOME: &[u8] = br#"<link rel="icon" href="https://cdn.test.net/i.png">"#;
-    let cases: [(&str, FakeHttp, Wanted); 7] = [
+    const FOUR_LINKS: &[u8] = br#"<link rel="icon" href="/1.png"><link rel="icon" href="/2.png">
+        <link rel="icon" href="/3.png"><link rel="icon" href="/4.png">"#;
+    const BOTH_LINKS: &[u8] = br#"<link rel="icon" href="/plain.png">
+        <link rel="apple-touch-icon" href="/touch.png">"#;
+    let cases: [(&str, FakeHttp, Wanted); 10] = [
         (
             "nothing answers",
             FakeHttp(vec![]),
@@ -267,6 +285,39 @@ fn fetches_from_paths_then_home_page_then_www() {
                 ("https://example.com/", Ok(HOME)),
             ]),
             Err(Failure::Unreachable),
+        ),
+        (
+            "link to a path already tried is skipped",
+            FakeHttp(vec![
+                ("https://example.com/favicon.ico", Err(Failure::Missing)),
+                (
+                    "https://example.com/",
+                    Ok(br#"<link rel="icon" href="/favicon.ico">"#),
+                ),
+            ]),
+            Err(Failure::Missing),
+        ),
+        (
+            "only the first links are tried",
+            FakeHttp(vec![
+                ("https://example.com/favicon.ico", Err(Failure::Missing)),
+                ("https://example.com/", Ok(FOUR_LINKS)),
+                ("https://example.com/1.png", Err(Failure::Missing)),
+                ("https://example.com/2.png", Err(Failure::Missing)),
+                ("https://example.com/3.png", Err(Failure::Missing)),
+                ("https://example.com/4.png", Ok(PNG)),
+            ]),
+            Err(Failure::Missing),
+        ),
+        (
+            "apple touch link before plain icon",
+            FakeHttp(vec![
+                ("https://example.com/favicon.ico", Err(Failure::Missing)),
+                ("https://example.com/", Ok(BOTH_LINKS)),
+                ("https://example.com/plain.png", Ok(b"GIF89a")),
+                ("https://example.com/touch.png", Ok(PNG)),
+            ]),
+            Ok(PNG),
         ),
         (
             "only www answers",
