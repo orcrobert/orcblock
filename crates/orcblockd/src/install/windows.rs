@@ -108,11 +108,52 @@ fn ace_is_safe(ace: &str) -> bool {
 
 /// Whether `dir` is a real directory locked down as [`install`] leaves it.
 pub fn is_locked_dir(runner: &impl CommandRunner, dir: &Path) -> bool {
-    let real_dir =
-        fs::symlink_metadata(dir).is_ok_and(|meta| meta.is_dir() && !meta.file_type().is_symlink());
-    real_dir
-        && powershell(runner, ACL_SCRIPT, Some(&format!("{}\n", dir.display())))
-            .is_ok_and(|sddl| is_locked_sddl(&sddl))
+    lock_check(runner, dir).is_some()
+}
+
+/// A handle that pins `dir` if it is a real directory locked down as
+/// [`install`] leaves it. While the handle is open the directory cannot be
+/// renamed or replaced, so the path PowerShell checks, and every later use
+/// of it, names the directory that was opened.
+fn lock_check(runner: &impl CommandRunner, dir: &Path) -> Option<fs::File> {
+    let pinned = pin_dir(dir).ok().flatten()?;
+    powershell(runner, ACL_SCRIPT, Some(&format!("{}\n", dir.display())))
+        .is_ok_and(|sddl| is_locked_sddl(&sddl))
+        .then_some(pinned)
+}
+
+/// Opens `dir` itself, never through a link, without sharing delete
+/// access; `None` if it is a link or not a directory.
+#[cfg(windows)]
+fn pin_dir(dir: &Path) -> std::io::Result<Option<fs::File>> {
+    use std::os::windows::fs::{MetadataExt as _, OpenOptionsExt as _};
+
+    const FILE_SHARE_READ_WRITE: u32 = 0x1 | 0x2;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ_WRITE)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(dir)?;
+    let meta = file.metadata()?;
+    Ok(
+        (meta.is_dir() && meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT == 0)
+            .then_some(file),
+    )
+}
+
+/// Unix has no share modes; this only rejects links, for the tests.
+#[cfg(unix)]
+fn pin_dir(dir: &Path) -> std::io::Result<Option<fs::File>> {
+    let meta = fs::symlink_metadata(dir)?;
+    if meta.is_dir() && !meta.file_type().is_symlink() {
+        fs::File::open(dir).map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 /// The task definition for the helper under `layout`.
@@ -199,7 +240,7 @@ pub fn install(
     exe: &Path,
 ) -> Result<(), InstallError> {
     require_elevation(runner)?;
-    prepare_data_dir(runner, &layout.data_dir())?;
+    prepare_data_dir(runner, layout)?;
 
     let helper = layout.helper();
     if let Some(dir) = helper.parent() {
@@ -264,10 +305,14 @@ pub fn uninstall(
 /// Any user may create a directory in `ProgramData`, so one that is a link or
 /// that is not locked is moved aside instead of repaired: anything planted
 /// inside could be a link that turns the daemon's writes elsewhere.
-fn prepare_data_dir(runner: &impl CommandRunner, dir: &Path) -> Result<(), InstallError> {
+fn prepare_data_dir(runner: &impl CommandRunner, layout: &Layout) -> Result<(), InstallError> {
+    let dir = &layout.data_dir();
     if fs::symlink_metadata(dir).is_ok() {
-        if is_locked_dir(runner, dir) {
+        if let Some(_pinned) = lock_check(runner, dir) {
             return lock_down(runner, dir);
+        }
+        if fs::symlink_metadata(layout.state_file()).is_ok() {
+            return Err(InstallError::UnlockedState(layout.data_dir()));
         }
         let aside = set_aside(dir)?;
         warn!(path = %aside.display(), "moved an unlocked data directory aside");
@@ -278,14 +323,17 @@ fn prepare_data_dir(runner: &impl CommandRunner, dir: &Path) -> Result<(), Insta
     // create_dir, not create_dir_all: a directory someone made in between
     // must not be taken over.
     fs::create_dir(dir).map_err(io_err("create", dir))?;
+    let pinned = pin_dir(dir).map_err(io_err("open", dir))?;
     lock_down(runner, dir)?;
     // A new directory in `ProgramData` lets users add files until it is
     // locked.
-    if fs::read_dir(dir)
+    let tampered = fs::read_dir(dir)
         .map_err(io_err("read", dir))?
         .next()
-        .is_some()
-    {
+        .is_some();
+    // The handle denies delete sharing, which would stop the move too.
+    drop(pinned);
+    if tampered {
         return Err(InstallError::Tampered(set_aside(dir)?));
     }
     Ok(())

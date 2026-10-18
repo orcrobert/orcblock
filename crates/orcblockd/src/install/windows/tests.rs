@@ -201,17 +201,41 @@ fn install_moves_a_data_directory_a_user_made_aside() {
     let tmp = tempfile::tempdir().expect("temp dir");
     let layout = Layout::windows_under(tmp.path().join("C"));
     fs::create_dir_all(layout.data_dir()).expect("creates");
-    fs::write(layout.state_file(), b"planted").expect("writes");
+    let planted = layout.data_dir().join("state.json.tmp");
+    fs::write(&planted, b"planted").expect("writes");
     let exe = tmp.path().join("orcblockd.exe");
     fs::write(&exe, b"binary").expect("writes");
 
     install(&layout, &runner_with_acl(ELEVATED, USER_OWNED), &exe).expect("installs");
-    assert!(!layout.state_file().exists(), "nothing of theirs is used");
+    assert!(!planted.exists(), "nothing of theirs is used");
     let aside = set_aside(&layout);
     assert_eq!(aside.len(), 1);
     assert_eq!(
-        fs::read(aside[0].join("state.json")).expect("moved"),
+        fs::read(aside[0].join("state.json.tmp")).expect("moved"),
         b"planted"
+    );
+}
+
+#[test]
+fn install_keeps_an_unlocked_data_directory_that_holds_state() {
+    let tmp = tempfile::tempdir().expect("temp dir");
+    let layout = Layout::windows_under(tmp.path().join("C"));
+    fs::create_dir_all(layout.data_dir()).expect("creates");
+    fs::write(layout.state_file(), b"{}").expect("writes");
+    let exe = tmp.path().join("orcblockd.exe");
+    fs::write(&exe, b"binary").expect("writes");
+    let runner = runner_with_acl(ELEVATED, USER_OWNED);
+
+    let err = install(&layout, &runner, &exe).expect_err("refused");
+    assert!(matches!(err, InstallError::UnlockedState(_)), "{err:?}");
+    assert_eq!(fs::read(layout.state_file()).expect("kept"), b"{}");
+    assert_eq!(set_aside(&layout), Vec::<std::path::PathBuf>::new());
+    assert!(
+        runner
+            .lines()
+            .iter()
+            .all(|line| !line.starts_with(SCHTASKS)),
+        "the running helper is left alone"
     );
 }
 

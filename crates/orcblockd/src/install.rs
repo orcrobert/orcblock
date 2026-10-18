@@ -43,6 +43,11 @@ pub enum InstallError {
     /// (Windows); the directory was moved to the given path.
     #[error("files appeared in the data directory before it was locked down; it was moved to {}", .0.display())]
     Tampered(PathBuf),
+    /// The data directory is not locked down but holds a state file, which
+    /// may carry a running block (Windows). Moving it aside would end that
+    /// block, so the install stops instead.
+    #[error("{} is not locked down but holds OrcBlock's state; fix its permissions or remove it, then install again", .0.display())]
+    UnlockedState(PathBuf),
     /// Uninstalling is refused while a block runs.
     #[error("a block is running for another {}; OrcBlock can be uninstalled once it ends", format_remaining(*.0))]
     Blocking(Duration),
