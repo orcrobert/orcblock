@@ -1,11 +1,11 @@
 use std::fs;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
-use orcblock_ipc::Mode;
+use orcblock_ipc::{Endpoint, Mode};
 use orcblockd::dns::{self, Sinkhole};
 use orcblockd::{
     Blocked, DryRunEnforcer, Enforcer, Layout, MacEnforcer, Service, Store, SystemClock,
@@ -117,7 +117,7 @@ fn run_daemon<E: Enforcer + 'static>(
     store: Store,
     enforcer: E,
     mode: Mode,
-    socket: &Path,
+    socket: &Endpoint,
     dns_addr: SocketAddr,
 ) -> Result<()> {
     let runtime = tokio::runtime::Runtime::new().context("start the async runtime")?;
@@ -127,7 +127,7 @@ fn run_daemon<E: Enforcer + 'static>(
 
     // Enforce any running block before accepting requests.
     let blocked = Blocked::default();
-    let service = Service::start(store, SystemClock, enforcer, blocked.clone(), mode)
+    let service = Service::start(store, SystemClock::new(), enforcer, blocked.clone(), mode)
         .context("start the service")?;
 
     runtime.block_on(async {

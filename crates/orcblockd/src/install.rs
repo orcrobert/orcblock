@@ -2,6 +2,7 @@
 
 use std::fs::{self, DirBuilder};
 use std::io;
+#[cfg(unix)]
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -127,11 +128,11 @@ pub fn uninstall(
 }
 
 fn make_dir(dir: &Path) -> Result<(), InstallError> {
-    DirBuilder::new()
-        .recursive(true)
-        .mode(0o755)
-        .create(dir)
-        .map_err(io_err("create", dir))
+    let mut builder = DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    builder.mode(0o755);
+    builder.create(dir).map_err(io_err("create", dir))
 }
 
 fn io_err(action: &'static str, path: &Path) -> impl FnOnce(io::Error) -> InstallError {

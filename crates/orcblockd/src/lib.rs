@@ -24,6 +24,6 @@ pub use enforce::{
     CommandRunner, DryRunCall, DryRunEnforcer, EnforceError, Enforcer, MacEnforcer, Output,
     SystemRunner,
 };
-pub use layout::{LABEL, Layout};
+pub use layout::{LABEL, Layout, Platform, TASK_NAME};
 pub use service::{MAX_RESTART_CREDIT, Service, StartError, VERIFY_EVERY};
 pub use store::{Saved, Store, StoreError};

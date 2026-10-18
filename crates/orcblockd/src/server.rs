@@ -1,16 +1,13 @@
-//! The Unix socket server and the tick loop.
+//! The socket server and the tick loop: a Unix socket, or loopback TCP on
+//! Windows.
 
-use std::fs::{self, Permissions};
 use std::future::Future;
 use std::io;
-use std::os::unix::fs::{FileTypeExt, PermissionsExt};
-use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use orcblock_ipc::{Command, ErrorKind, MAX_MESSAGE_LEN, Response, codec};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixListener, UnixStream};
+use orcblock_ipc::{Command, Endpoint, ErrorKind, MAX_MESSAGE_LEN, Response, codec};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{Semaphore, watch};
 use tokio::time::{MissedTickBehavior, interval, sleep, timeout};
 use tracing::{debug, error, info, warn};
@@ -30,10 +27,22 @@ const MAX_CONNECTIONS: usize = 32;
 /// `spawn_blocking`, because commands may run system programs.
 type Shared<C, E> = Arc<Mutex<Service<C, E>>>;
 
+/// What the server accepts connections on.
+#[cfg(unix)]
+pub type Listener = tokio::net::UnixListener;
+
+/// What the server accepts connections on.
+#[cfg(windows)]
+pub type Listener = tokio::net::TcpListener;
+
 /// Binds the socket at `path`, mode 0666 so the unprivileged app can
 /// connect. A stale socket file is replaced; a socket another daemon still
 /// answers on, or a path that is not a socket, is an error.
-pub fn bind(path: &Path) -> io::Result<UnixListener> {
+#[cfg(unix)]
+pub fn bind(path: &Endpoint) -> io::Result<Listener> {
+    use std::fs::{self, Permissions};
+    use std::os::unix::fs::{FileTypeExt, PermissionsExt};
+
     match fs::symlink_metadata(path) {
         Ok(meta) if !meta.file_type().is_socket() => {
             return Err(io::Error::new(
@@ -53,9 +62,24 @@ pub fn bind(path: &Path) -> io::Result<UnixListener> {
         Err(err) if err.kind() == io::ErrorKind::NotFound => {}
         Err(err) => return Err(err),
     }
-    let listener = UnixListener::bind(path)?;
+    let listener = Listener::bind(path)?;
     fs::set_permissions(path, Permissions::from_mode(0o666))?;
     Ok(listener)
+}
+
+/// Binds the loopback address `addr`. Any local process may connect, as
+/// with the 0666 socket on Unix; another daemon on the port is an error.
+#[cfg(windows)]
+pub fn bind(addr: &Endpoint) -> io::Result<Listener> {
+    if !addr.ip().is_loopback() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{addr} is not a loopback address"),
+        ));
+    }
+    let listener = std::net::TcpListener::bind(addr)?;
+    listener.set_nonblocking(true)?;
+    Listener::from_std(listener)
 }
 
 /// Serves requests and ticks until `shutdown` completes, then saves the
@@ -63,7 +87,7 @@ pub fn bind(path: &Path) -> io::Result<UnixListener> {
 /// daemon process.
 pub async fn run<C, E>(
     service: Service<C, E>,
-    listener: UnixListener,
+    listener: Listener,
     shutdown: impl Future<Output = ()>,
 ) where
     C: Clock + 'static,
@@ -92,11 +116,8 @@ pub async fn run<C, E>(
     }
 }
 
-async fn serve<C, E>(
-    listener: UnixListener,
-    service: Shared<C, E>,
-    mut stopped: watch::Receiver<bool>,
-) where
+async fn serve<C, E>(listener: Listener, service: Shared<C, E>, mut stopped: watch::Receiver<bool>)
+where
     C: Clock + 'static,
     E: Enforcer + 'static,
 {
@@ -127,12 +148,17 @@ async fn serve<C, E>(
     }
 }
 
-async fn connection<C, E>(stream: UnixStream, service: Shared<C, E>) -> io::Result<()>
+/// Answers requests on one connection until it closes, idles or sends
+/// something that is not a request. Hanging up on the first undecodable line
+/// matters for TCP: a web page can make a browser connect to the port, but
+/// its first line is an HTTP request line, so nothing after it is read.
+async fn connection<S, C, E>(stream: S, service: Shared<C, E>) -> io::Result<()>
 where
+    S: AsyncRead + AsyncWrite,
     C: Clock + 'static,
     E: Enforcer + 'static,
 {
-    let (read, mut write) = stream.into_split();
+    let (read, mut write) = tokio::io::split(stream);
     let mut reader = BufReader::new(read);
     let limit = u64::try_from(MAX_MESSAGE_LEN).unwrap_or(u64::MAX);
     let mut line = Vec::new();
@@ -148,17 +174,20 @@ where
             return Ok(());
         }
         let too_long = line.last() != Some(&b'\n') && line.len() >= MAX_MESSAGE_LEN;
-        let response = if too_long {
-            Response::error(ErrorKind::BadRequest, "Message too long")
+        let (response, hang_up) = if too_long {
+            (
+                Response::error(ErrorKind::BadRequest, "Message too long"),
+                true,
+            )
         } else {
             match codec::decode_request(&line) {
-                Ok(request) => handle(&service, request.command).await?,
-                Err(err) => err.into(),
+                Ok(request) => (handle(&service, request.command).await?, false),
+                Err(err) => (err.into(), true),
             }
         };
         let bytes = codec::encode(&response).map_err(io::Error::other)?;
         write.write_all(&bytes).await?;
-        if too_long {
+        if hang_up {
             return Ok(());
         }
     }

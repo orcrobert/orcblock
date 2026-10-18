@@ -1,4 +1,5 @@
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 use jiff::Timestamp;
@@ -32,11 +33,14 @@ fn install_copies_the_helper_and_bootstraps_it() {
 
     install(&layout, &runner, &exe).expect("installs");
     assert_eq!(fs::read(layout.helper()).expect("copied"), b"binary");
-    let mode = fs::metadata(layout.helper())
-        .expect("exists")
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o755);
+    #[cfg(unix)]
+    {
+        let mode = fs::metadata(layout.helper())
+            .expect("exists")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o755);
+    }
     assert_eq!(
         fs::read_to_string(layout.plist()).expect("written"),
         plist(&layout)

@@ -1,4 +1,5 @@
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 use orcblock_core::{Domain, Month};
@@ -42,11 +43,14 @@ fn save_then_load_round_trips() {
             state: state()
         })
     );
-    let mode = fs::metadata(store.path())
-        .expect("exists")
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o644);
+    #[cfg(unix)]
+    {
+        let mode = fs::metadata(store.path())
+            .expect("exists")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o644);
+    }
     let names: Vec<_> = fs::read_dir(dir.path())
         .expect("lists")
         .map(|entry| entry.expect("entry").file_name())
