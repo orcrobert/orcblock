@@ -343,13 +343,9 @@ fn writes_atomically_over_an_existing_entry() {
 }
 
 #[test]
-fn only_status_codes_and_oversized_bodies_count_as_missing() {
+fn only_status_codes_count_as_missing() {
     assert_eq!(
         Failure::from(ureq::Error::StatusCode(404)),
-        Failure::Missing
-    );
-    assert_eq!(
-        Failure::from(ureq::Error::BodyExceedsLimit(1)),
         Failure::Missing
     );
     assert_eq!(

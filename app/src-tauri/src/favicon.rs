@@ -48,7 +48,7 @@ enum Failure {
 impl From<ureq::Error> for Failure {
     fn from(err: ureq::Error) -> Self {
         match err {
-            ureq::Error::StatusCode(_) | ureq::Error::BodyExceedsLimit(_) => Self::Missing,
+            ureq::Error::StatusCode(_) => Self::Missing,
             _ => Self::Unreachable,
         }
     }
@@ -57,7 +57,7 @@ impl From<ureq::Error> for Failure {
 impl Favicons {
     pub(crate) fn new(cache_dir: PathBuf) -> Self {
         // Redirects are followed by hand so each hop passes `resolve`; no
-        // proxy, so the blocklist stays on this Mac.
+        // proxy, so the blocklist stays on this computer.
         let agent = ureq::Agent::config_builder()
             .timeout_global(Some(TIMEOUT))
             .user_agent(concat!("OrcBlock/", env!("CARGO_PKG_VERSION")))
@@ -184,7 +184,15 @@ impl Http for Web {
                     .as_reader()
                     .take(MAX_BYTES + 1)
                     .read_to_end(&mut bytes)
-                    .map_err(|_| Failure::Unreachable)?;
+                    .map_err(|err| {
+                        // A body that does not decompress is the site's
+                        // answer; a cut-off one may come through next time.
+                        if err.kind() == io::ErrorKind::InvalidData {
+                            Failure::Missing
+                        } else {
+                            Failure::Unreachable
+                        }
+                    })?;
                 return capped(bytes, body).map(|bytes| (url, bytes));
             }
             let location = response
