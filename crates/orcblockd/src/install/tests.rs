@@ -16,9 +16,18 @@ fn ok_runner() -> FakeRunner {
 
 #[test]
 fn plist_runs_the_helper_at_load_and_keeps_it_alive() {
-    let plist = plist(&Layout::system());
+    // The macOS layout on every host, so the test also runs on Windows.
+    let layout = Layout::under("/");
+    let plist = plist(&layout);
     assert!(plist.contains("<string>com.orcrobert.orcblockd</string>"));
-    assert!(plist.contains("<string>/Library/PrivilegedHelperTools/com.orcrobert.orcblockd</string>\n\t\t<string>serve</string>"));
+    assert!(plist.contains(&format!(
+        "<string>{}</string>\n\t\t<string>serve</string>",
+        layout.helper().display()
+    )));
+    #[cfg(unix)]
+    assert!(
+        plist.contains("<string>/Library/PrivilegedHelperTools/com.orcrobert.orcblockd</string>")
+    );
     assert!(plist.contains("<key>RunAtLoad</key>\n\t<true/>"));
     assert!(plist.contains("<key>KeepAlive</key>\n\t<true/>"));
 }

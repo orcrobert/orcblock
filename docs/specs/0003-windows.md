@@ -100,3 +100,4 @@ Found in review and left for later; none lets a standard user end a block.
 - A directory moved aside as `Tampered` stays in ProgramData, locked; harmless, but untidy.
 - Kill open connections to blocked sites at block start, as pf does on macOS.
 - Verify on a Windows VM: the NSIS hooks during an update, `share_mode` with `Start-Process`, and `Instant` across hibernation.
+- `tools/agenthooks` assumes Unix paths; its tests are excluded from the Windows CI and release jobs until the hooks handle Windows paths.
