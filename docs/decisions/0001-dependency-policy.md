@@ -25,7 +25,7 @@ OrcBlock installs a daemon that runs as root on people's Macs. Every dependency 
 - `tokio`: async runtime for the daemon.
 - `jiff`: time zones and calendar months for the potion ledger.
 - `idna`: Unicode domain names to and from punycode.
-- `nix`: safe wrappers for euid and file ownership in the daemon.
+- `nix`: safe wrappers for euid, file ownership, opening files safely and process signals in the daemon (ADR 0006).
 - `clap`: command-line parsing for the daemon and the CLI.
 - `tauri`: the desktop app framework (ADR 0004).
 - `tauri-build`: Tauri's build script.
