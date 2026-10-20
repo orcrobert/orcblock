@@ -353,20 +353,24 @@ fn attributes(tag: &str) -> Vec<(&str, &str)> {
 /// The cache file stem for `domain`: a hash, so names never collide and
 /// never depend on what a domain may contain.
 fn cache_key(domain: &Domain) -> String {
-    Sha256::digest(domain.as_ascii().as_bytes()).iter().fold(
-        String::with_capacity(64),
-        |mut hex, byte| {
+    hex_digest(domain.as_ascii().as_bytes())
+}
+
+/// SHA-256 of `bytes` in lowercase hex, for stable cache file names.
+pub(crate) fn hex_digest(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .fold(String::with_capacity(64), |mut hex, byte| {
             // Writing to a String cannot fail.
             let _ = write!(hex, "{byte:02x}");
             hex
-        },
-    )
+        })
 }
 
 /// Writes through `temp`, a fresh file next to `path`, and a rename, so
 /// readers never see a half-written icon and a planted symlink at `path` is
 /// replaced, not followed.
-fn write_atomic(temp: &Path, path: &Path, bytes: &[u8]) -> io::Result<()> {
+pub(crate) fn write_atomic(temp: &Path, path: &Path, bytes: &[u8]) -> io::Result<()> {
     if let Some(dir) = temp.parent() {
         fs::create_dir_all(dir)?;
     }

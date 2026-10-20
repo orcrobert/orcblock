@@ -1,6 +1,7 @@
 //! The `OrcBlock` desktop app: Tauri commands that forward to the daemon, a
 //! background task that streams its status to the window, and favicons.
 
+mod apps;
 mod favicon;
 
 use std::path::PathBuf;
@@ -15,6 +16,7 @@ use orcblock_ipc::{Client, ClientError, DEFAULT_SOCKET, ErrorKind, Status};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::apps::{Apps, InstalledApp, SystemRunner};
 use crate::favicon::Favicons;
 
 /// Why a command failed, as the UI receives it.
@@ -64,6 +66,7 @@ enum StatusEvent {
 struct AppState {
     client: Client,
     favicons: Favicons,
+    apps: Apps<SystemRunner>,
     dev: bool,
 }
 
@@ -125,6 +128,69 @@ async fn favicon(state: Shared<'_>, domain: String) -> Result<Option<String>, Ap
             kind: "internal".into(),
             message: err.to_string(),
         })
+}
+
+#[tauri::command]
+async fn add_app(state: Shared<'_>, bundle_id: String, name: String) -> Result<Status, AppError> {
+    call(&state, move |client| client.add_app(&bundle_id, &name)).await
+}
+
+#[tauri::command]
+async fn remove_app(state: Shared<'_>, bundle_id: String) -> Result<Status, AppError> {
+    call(&state, move |client| client.remove_app(&bundle_id)).await
+}
+
+/// Runs `f` on the app finder off the async runtime: it starts programs
+/// and reads the disk.
+async fn with_apps<T: Send + 'static>(
+    state: &Shared<'_>,
+    f: impl FnOnce(&Apps<SystemRunner>) -> T + Send + 'static,
+) -> Result<T, AppError> {
+    let state = Arc::clone(state);
+    tauri::async_runtime::spawn_blocking(move || f(&state.apps))
+        .await
+        .map_err(|err| AppError {
+            kind: "internal".into(),
+            message: err.to_string(),
+        })
+}
+
+/// The apps in the usual folders, sorted by name.
+#[tauri::command]
+async fn installed_apps(state: Shared<'_>) -> Result<Vec<InstalledApp>, AppError> {
+    with_apps(&state, Apps::installed).await
+}
+
+/// The bundle IDs of the apps open now.
+#[tauri::command]
+async fn running_apps(state: Shared<'_>) -> Result<Vec<String>, AppError> {
+    with_apps(&state, Apps::running).await
+}
+
+/// The app's icon as a data URL, or `null` for a monogram.
+#[tauri::command]
+async fn app_icon(state: Shared<'_>, bundle_id: String) -> Result<Option<String>, AppError> {
+    with_apps(&state, move |apps| apps.icon(&bundle_id)).await
+}
+
+/// The app bundle at `path`, as dropped from Finder or the Dock.
+#[tauri::command]
+async fn app_from_path(state: Shared<'_>, path: String) -> Result<InstalledApp, AppError> {
+    with_apps(&state, move |apps| {
+        apps.at_path(std::path::Path::new(&path))
+    })
+    .await?
+    .ok_or_else(|| AppError {
+        kind: "invalid_app".into(),
+        message: "That is not an app; drop an app from Applications or the Dock".into(),
+    })
+}
+
+/// Lets the user choose an app in the macOS file dialog; `null` when they
+/// cancel.
+#[tauri::command]
+async fn pick_app_in_finder(state: Shared<'_>) -> Result<Option<InstalledApp>, AppError> {
+    with_apps(&state, Apps::pick).await
 }
 
 /// Installs the bundled helper through the macOS administrator prompt.
@@ -244,10 +310,16 @@ pub fn run() {
 
     let result = tauri::Builder::default()
         .setup(move |app| {
-            let cache_dir = app.path().app_cache_dir()?.join("favicons");
+            let cache_dir = app.path().app_cache_dir()?;
+            let home = app.path().home_dir().ok();
             app.manage(Arc::new(AppState {
                 client: client.clone(),
-                favicons: Favicons::new(cache_dir),
+                favicons: Favicons::new(cache_dir.join("favicons")),
+                apps: Apps::new(
+                    SystemRunner,
+                    apps::app_folders(home.as_deref()),
+                    cache_dir.join("app-icons"),
+                ),
                 dev,
             }));
             spawn_status_task(app.handle().clone(), client);
@@ -260,7 +332,14 @@ pub fn run() {
             start_block,
             drink_potion,
             favicon,
-            install_helper
+            install_helper,
+            add_app,
+            remove_app,
+            installed_apps,
+            running_apps,
+            app_icon,
+            app_from_path,
+            pick_app_in_finder
         ])
         .run(tauri::generate_context!());
     if let Err(err) = result {

@@ -13,6 +13,13 @@ const COMMANDS: &[&str] = &[
     "drink_potion",
     "favicon",
     "install_helper",
+    "add_app",
+    "remove_app",
+    "installed_apps",
+    "running_apps",
+    "app_icon",
+    "app_from_path",
+    "pick_app_in_finder",
 ];
 
 fn main() {

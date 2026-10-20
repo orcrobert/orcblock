@@ -13,6 +13,13 @@
     "allow-start-block",
     "allow-drink-potion",
     "allow-favicon",
-    "allow-install-helper"
+    "allow-install-helper",
+    "allow-add-app",
+    "allow-remove-app",
+    "allow-installed-apps",
+    "allow-running-apps",
+    "allow-app-icon",
+    "allow-app-from-path",
+    "allow-pick-app-in-finder"
   ]
 }
