@@ -4,7 +4,7 @@ use std::time::Duration;
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
-use crate::Domain;
+use crate::{BundleId, Domain};
 
 /// How long a block runs: between one minute and seven days, in whole
 /// seconds.
@@ -76,6 +76,8 @@ impl From<BlockDuration> for u64 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Session {
     domains: BTreeSet<Domain>,
+    #[serde(default)]
+    apps: BTreeSet<BundleId>,
     started_at: Timestamp,
     duration: BlockDuration,
     #[serde(with = "secs")]
@@ -83,9 +85,15 @@ pub struct Session {
 }
 
 impl Session {
-    pub(crate) fn new(domains: BTreeSet<Domain>, duration: BlockDuration, now: Timestamp) -> Self {
+    pub(crate) fn new(
+        domains: BTreeSet<Domain>,
+        apps: BTreeSet<BundleId>,
+        duration: BlockDuration,
+        now: Timestamp,
+    ) -> Self {
         Self {
             domains,
+            apps,
             started_at: now,
             duration,
             remaining: duration.get(),
@@ -96,6 +104,12 @@ impl Session {
     #[must_use]
     pub fn domains(&self) -> &BTreeSet<Domain> {
         &self.domains
+    }
+
+    /// The apps this block closes.
+    #[must_use]
+    pub fn apps(&self) -> &BTreeSet<BundleId> {
+        &self.apps
     }
 
     /// When the block started, by the wall clock.
@@ -131,6 +145,10 @@ impl Session {
 
     pub(crate) fn add(&mut self, domain: Domain) {
         self.domains.insert(domain);
+    }
+
+    pub(crate) fn add_app(&mut self, bundle_id: BundleId) {
+        self.apps.insert(bundle_id);
     }
 
     pub(crate) fn advance(&mut self, elapsed: Duration) {

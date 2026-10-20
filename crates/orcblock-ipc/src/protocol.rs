@@ -87,9 +87,12 @@ impl Response {
 impl From<&CommandError> for Response {
     fn from(err: &CommandError) -> Self {
         let kind = match err {
-            CommandError::Locked(_) => ErrorKind::Locked,
-            CommandError::AlreadyListed { .. } => ErrorKind::AlreadyListed,
-            CommandError::NotListed(_) => ErrorKind::NotListed,
+            CommandError::Locked(_) | CommandError::AppLocked(_) => ErrorKind::Locked,
+            CommandError::AlreadyListed { .. } | CommandError::AppAlreadyListed(_) => {
+                ErrorKind::AlreadyListed
+            }
+            CommandError::NotListed(_) | CommandError::AppNotListed(_) => ErrorKind::NotListed,
+            CommandError::Unblockable(_) => ErrorKind::Unblockable,
             CommandError::EmptyBlocklist => ErrorKind::EmptyBlocklist,
             CommandError::AlreadyBlocking => ErrorKind::AlreadyBlocking,
             CommandError::NotBlocking => ErrorKind::NotBlocking,
@@ -109,7 +112,9 @@ pub enum ErrorKind {
     AlreadyListed,
     /// The site is not listed.
     NotListed,
-    /// A block needs at least one site.
+    /// The app is part of macOS or `OrcBlock` and is never blocked.
+    Unblockable,
+    /// A block needs at least one site or app.
     EmptyBlocklist,
     /// A block is already running.
     AlreadyBlocking,
