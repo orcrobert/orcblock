@@ -26,7 +26,7 @@ base64 = "0.23"
 clap = { version = "4.6", features = ["derive", "env"] }
 idna = "1.1"
 jiff = { version = "0.2.38", features = ["serde"] }
-nix = { version = "0.31", features = ["time", "user"] }
+nix = { version = "0.31", features = ["fs", "signal", "time", "user"] }
 proptest = "1.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
