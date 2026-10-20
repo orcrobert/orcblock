@@ -1,6 +1,16 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { api, errorMessage, type Site, type Status } from "../lib/api";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
+  import {
+    api,
+    errorMessage,
+    type App,
+    type InstalledApp,
+    type Site,
+    type Status,
+  } from "../lib/api";
+  import AppPicker from "../lib/components/AppPicker.svelte";
+  import AppRow from "../lib/components/AppRow.svelte";
   import Button from "../lib/components/Button.svelte";
   import Countdown from "../lib/components/Countdown.svelte";
   import Dialog from "../lib/components/Dialog.svelte";
@@ -25,12 +35,20 @@
   let siteError = $state("");
   let minutes = $state(DEFAULT_MINUTES);
   let confirming = $state(false);
+  let picking = $state(false);
+  let dragging = $state(false);
+  /** Names of listed apps that are open, shown before a block starts. */
+  let closing = $state<string[]>([]);
+  let warning = $state(false);
+  /** How many open apps the Start warning names before "+N MORE". */
+  const MAX_NAMED = 5;
   let orcBox: OrcBox | undefined = $state();
   let control: HTMLElement | undefined = $state();
   let busy = $state(false);
 
   const block = $derived(status.block);
-  const empty = $derived(status.sites.length === 0);
+  const empty = $derived(status.sites.length === 0 && status.apps.length === 0);
+  const listed = $derived(new Set(status.apps.map((app) => app.bundle_id)));
 
   async function run(action: () => Promise<Status>): Promise<boolean> {
     busy = true;
@@ -61,6 +79,85 @@
     void run(() => api.removeSite(entry.domain));
   }
 
+  function removeApp(entry: App) {
+    void run(() => api.removeApp(entry.bundle_id));
+  }
+
+  async function addApp(app: InstalledApp): Promise<string | null> {
+    try {
+      onstatus(await api.addApp(app.bundle_id, app.name));
+      return null;
+    } catch (err) {
+      return errorMessage(err);
+    }
+  }
+
+  /** Starts the block, or first lists the listed apps it will close. */
+  async function arm() {
+    if (status.apps.length > 0) {
+      busy = true;
+      // Without the list the block still starts; the warning is a courtesy.
+      const open = new Set(await api.runningApps().catch(() => []));
+      busy = false;
+      const names = status.apps.filter((app) => open.has(app.bundle_id)).map((app) => app.name);
+      if (names.length > 0) {
+        closing = names;
+        warning = true;
+        return;
+      }
+    }
+    await start();
+  }
+
+  async function start() {
+    // Closed first, so an error shows in the snackbar, not under the modal.
+    warning = false;
+    await run(() => api.startBlock(minutes));
+  }
+
+  async function dropApps(paths: string[]) {
+    for (const path of paths.filter(isAppPath)) {
+      try {
+        const app = await api.appFromPath(path);
+        const failed = await addApp(app);
+        if (failed) onerror(failed);
+      } catch (err) {
+        onerror(errorMessage(err));
+      }
+    }
+  }
+
+  function isAppPath(path: string): boolean {
+    return /\.app\/?$/i.test(path);
+  }
+
+  $effect(() => {
+    let unlisten: (() => void) | undefined;
+    let current = true;
+    void getCurrentWebview()
+      .onDragDropEvent(({ payload }) => {
+        // A dialog covers the list; a drop there would change it unseen.
+        const covered = picking || warning || confirming;
+        if (payload.type === "enter") dragging = !covered && payload.paths.some(isAppPath);
+        else if (payload.type === "leave") dragging = false;
+        else if (payload.type === "drop") {
+          dragging = false;
+          if (covered) return;
+          if (payload.paths.some(isAppPath)) void dropApps(payload.paths);
+          else onerror("That is not an app; drop an app from Applications or the Dock");
+        }
+      })
+      .then((stop) => {
+        if (current) unlisten = stop;
+        else stop();
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+      unlisten?.();
+    };
+  });
+
   async function drink() {
     const used = status.potions.available - 1;
     if (await run(api.drinkPotion)) {
@@ -87,7 +184,7 @@
         remaining={block.remaining_secs}
         duration={block.duration_secs}
         endsAt={block.ends_at}
-        sites={block.domains.length}
+        sites={block.domains.length + block.apps.length}
       />
     {:else}
       <DurationPicker bind:minutes />
@@ -104,17 +201,17 @@
           <span>DRINK</span><span>&gt;&gt;&gt;</span>
         </Button>
       {:else}
-        <Button disabled={busy || empty} onclick={() => run(() => api.startBlock(minutes))}>
+        <Button disabled={busy || empty} onclick={arm}>
           <span>ARM // START BLOCK</span><span>&gt;&gt;&gt;</span>
         </Button>
       {/if}
     </footer>
   </section>
 
-  <section class="targets" aria-labelledby="targets-title">
+  <section class="targets" class:dragging aria-labelledby="targets-title">
     <header class="micro">
       <h2 id="targets-title">[ TARGETS ]</h2>
-      <span class="muted">{pad2(status.sites.length)}</span>
+      <span class="muted">{pad2(status.sites.length + status.apps.length)}</span>
     </header>
 
     <form class="prompt" onsubmit={addSite}>
@@ -133,6 +230,7 @@
         oninput={() => (siteError = "")}
       />
       <button type="submit" class="micro" disabled={site.trim() === ""}>ADD +</button>
+      <button type="button" class="micro app" onclick={() => (picking = true)}>+ APP</button>
     </form>
     <p
       id="site-help"
@@ -140,22 +238,50 @@
       class:error={siteError}
       role={siteError ? "alert" : undefined}
     >
-      {siteError || (block ? "NEW TARGETS ARE BLOCKED AT ONCE" : "PASTE A LINK OR TYPE A NAME")}
+      {siteError ||
+        (dragging
+          ? "DROP TO ADD THE APP"
+          : block
+            ? "NEW TARGETS ARE BLOCKED AT ONCE"
+            : "PASTE A LINK, TYPE A NAME OR DROP AN APP")}
     </p>
 
     <div class="list">
       {#if empty}
-        <p class="none micro muted">NO TARGETS // ADD A SITE ABOVE</p>
+        <p class="none micro muted">NO TARGETS // ADD A SITE OR AN APP ABOVE</p>
       {:else}
         <ul>
           {#each status.sites as entry, i (entry.domain)}
             <SiteRow site={entry} index={i + 1} locked={block !== null} onremove={removeSite} />
+          {/each}
+          {#each status.apps as entry, i (entry.bundle_id)}
+            <AppRow
+              app={entry}
+              index={status.sites.length + i + 1}
+              locked={block !== null}
+              onremove={removeApp}
+            />
           {/each}
         </ul>
       {/if}
     </div>
   </section>
 </div>
+
+<AppPicker bind:open={picking} {listed} onadd={addApp} />
+
+<Dialog bind:open={warning} tag="CONFIRM // CLOSE APPS" title="Close open apps?">
+  {closing.slice(0, MAX_NAMED).join(", ")}{closing.length > MAX_NAMED
+    ? ` +${closing.length - MAX_NAMED} MORE`
+    : ""}
+  {closing.length === 1 ? "WILL" : "WILL ALL"} BE CLOSED. SAVE YOUR WORK.
+  {#snippet actions()}
+    <Button variant="plain" onclick={() => (warning = false)}>ABORT</Button>
+    <Button disabled={busy} onclick={start}>
+      <span>CLOSE + ARM</span><span>&gt;&gt;&gt;</span>
+    </Button>
+  {/snippet}
+</Dialog>
 
 <Dialog bind:open={confirming} tag="CONFIRM // SLEEP POTION" title="End block now?">
   USES 1 OF {status.potions.available} POTIONS. TARGETS UNLOCK AT ONCE. REFILL {status.potions
@@ -226,7 +352,7 @@
   }
   .prompt {
     display: grid;
-    grid-template-columns: 28px 1fr auto;
+    grid-template-columns: 28px 1fr auto auto;
     border-bottom: var(--rule-thin) solid var(--rule);
   }
   .prompt > span {
@@ -263,6 +389,14 @@
     color: var(--paper);
     cursor: pointer;
   }
+  .prompt button.app {
+    background: transparent;
+    color: var(--ink);
+  }
+  .prompt button.app:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
   .prompt button:disabled {
     background: transparent;
     color: var(--ink-muted);
@@ -276,6 +410,10 @@
   }
   .help.error {
     color: var(--red);
+  }
+  .targets.dragging .list {
+    outline: var(--rule-thick) dashed var(--red);
+    outline-offset: -4px;
   }
   .list {
     min-height: 0;

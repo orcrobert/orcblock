@@ -24,16 +24,19 @@ Look: Swiss industrial print brutalism. Follow the industrial-brutalist-ui skill
 - `DurationPicker`: `[ DURATION ]`, the macro readout `H:MM`, `ENDS 17:42`, and an 8-cell strip `− 25M 1H 2H 4H 8H 1D +` (minus and plus step through `DURATION_STOPS`, 15 min to 7 days). Double-clicking the readout (or activating it with the keyboard or VoiceOver) turns it into an input in the same type with a red underline: `1:30`, `90`, `90m`, `2h`, `1h30`, `2d 4h` (`parseDuration`, 1 min to 7 days); Enter or blur sets it, Escape cancels, out-of-range shows `OUT OF RANGE // 1M TO 7D` in red.
 - `Countdown`: `[ TIME REMAINING ]`, macro `H:MM` with the seconds smaller and red, `ENDS 17:42 // N TARGETS // 42%`, and a full-width red progress strip with 10 % ticks. From 10 hours up the readout shrinks to 72 % of the macro size (`--macro-size`) so 167:59 fits.
 - `SiteRow`: `01`, a grayscale favicon (or an empty square), the uppercase domain, the date added and `[ × ]`, or `LOCKED` in red during a block.
+- `AppRow`: like `SiteRow` for an app: its icon, the name, an `APP` tag, the date and `[ × ]` or `LOCKED`.
+- `AppIcon`: an app's icon from `app_icon`, grayscale, or a two-letter monogram in a hairline square.
+- `AppPicker`: a wide `Dialog`: a filter prompt (Enter adds the top match), a grid of installed apps with `OPEN NOW` first, and `BROWSE IN FINDER… >>>`. Apps already listed are not offered; the order lives in `lib/picker.ts`.
 - `PotionVials`: five 1-bit pixel vials at the top of the orc box, purple liquid for each potion left, empty outlines for used ones; always visible on Home.
 - `PotionShelf`: a `<dl>` beside the potion button during a block: `SLEEP POTIONS`, `3/5 LEFT`, `REFILL 2026-11-01`.
-- `Dialog`: square, 2 px ink border, hatched backdrop, red tag strip `[ CONFIRM // SLEEP POTION ]`, headline title, two cell buttons.
+- `Dialog`: square (or `wide` for a grid), 2 px ink border, hatched backdrop, red tag strip `[ CONFIRM // SLEEP POTION ]`, headline title, two cell buttons.
 - `Snackbar`: full-width red strip at the bottom, `ERR // message`, 5 s.
 - `OrcBox`: the orc's compartment: vials on top, the sprite, `ORC-01 // ASLEEP | ON GUARD | DRINKING`. `drink(slot)` stages the potion: the vial falls into the hand, the orc drinks and falls asleep, the empty vial climbs back.
 - `Orc` and `Vial` (in `lib/mascot`): see the mascot skill.
 
 ## Screens (`app/src/routes`, switched by state, no router)
 - `Setup`: left: `HELPER MISSING`, macro `HELPER REQUIRED`, sleeping orc, `INSTALL HELPER >>>`. Right: `[ WHAT IT DOES ]` with four numbered facts.
-- `Home` idle: left: `IDLE`, the duration picker beside the orc box (potion vials, sleeping orc, caption), `ARM // START BLOCK >>>` (disabled while there are no targets). Right: targets.
+- `Home` idle: left: `IDLE`, the duration picker beside the orc box (potion vials, sleeping orc, caption), `ARM // START BLOCK >>>` (disabled while there are no targets; when listed apps are open it first asks `CLOSE OPEN APPS?`). Right: targets: sites, then apps; `+ APP` opens the picker, and dropping a `.app` on the window adds it (the list gets a dashed red outline while dragging).
 - `Home` blocking: left: `ARMED`, the countdown beside the guarding orc, potions and `DRINK >>>` behind a confirm dialog; after a potion the orc plays `drinking`, then sleeps. Right: targets with removal locked, adding still allowed.
 
 ## Rules
