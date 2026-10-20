@@ -52,7 +52,7 @@
   <div class="page">
     <div class="bar micro">
       <span>UNIT / ORC-01</span>
-      <span class="muted wide">SITE + APP BLOCKER // MACOS</span>
+      <span class="muted wide">DISTRACTION BLOCKER // MACOS</span>
       <span class="status"><span class="light" aria-hidden="true"></span>STATUS: ARMED</span>
     </div>
 
@@ -63,9 +63,9 @@
           No way<br />out<span class="red">.</span>
         </h1>
         <p class="lead">
-          Pick the sites and apps. Pick the time. An orc stands guard until it's over. Closing the
-          app, quitting it or restarting your Mac changes nothing. The only way out early is a sleep
-          potion, and you get five a month.
+          Pick the sites and apps. Pick the time. An orc stands guard until it's over. Closing
+          OrcBlock, quitting it or restarting your Mac changes nothing. The only way out early is a
+          sleep potion, and you get five a month.
         </p>
         <HeroDownload {platform} />
       </div>
