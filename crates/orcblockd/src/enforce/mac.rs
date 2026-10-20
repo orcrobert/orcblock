@@ -86,7 +86,11 @@ impl<R: CommandRunner> MacEnforcer<R> {
 
     fn load_anchor(&self) -> Result<(), EnforceError> {
         self.runner
-            .run(PFCTL, &["-a", pf::ANCHOR, "-f", "-"], Some(&pf::rules()))
+            .run(
+                PFCTL,
+                &["-a", pf::ANCHOR, "-f", "-"],
+                Some(pf::rules().as_bytes()),
+            )
             .map(drop)
     }
 
