@@ -27,13 +27,32 @@ pub(crate) fn status(status: &Status, tz: &TimeZone) -> String {
         }
     }
 
-    if status.sites.is_empty() {
-        let _ = writeln!(out, "No sites yet; add one with `orcblock add youtube.com`");
-    } else {
+    if status.sites.is_empty() && status.apps.is_empty() {
+        let _ = writeln!(
+            out,
+            "Nothing listed yet; add a site with `orcblock add youtube.com` or an app with `orcblock add-app <bundle-id>`"
+        );
+    } else if !status.sites.is_empty() {
         let _ = writeln!(out, "Sites:");
         for site in &status.sites {
             let _ = writeln!(out, "  {}", site.display);
         }
+    }
+
+    if !status.apps.is_empty() {
+        let _ = writeln!(out, "Apps:");
+        for app in &status.apps {
+            let _ = writeln!(out, "  {} ({})", app.name, app.bundle_id);
+        }
+    }
+
+    if !status.blocked_launches.is_empty() {
+        let closed: Vec<String> = status
+            .blocked_launches
+            .iter()
+            .map(|launch| format!("{} at {}", launch.name, time(launch.at, tz)))
+            .collect();
+        let _ = writeln!(out, "Closed by the orc: {}", closed.join(", "));
     }
 
     let potions = status.potions;
@@ -58,6 +77,10 @@ pub(crate) fn remaining(secs: u64) -> String {
 
 fn clock(at: Timestamp, tz: &TimeZone) -> String {
     at.to_zoned(tz.clone()).strftime("%a %H:%M").to_string()
+}
+
+fn time(at: Timestamp, tz: &TimeZone) -> String {
+    at.to_zoned(tz.clone()).strftime("%H:%M").to_string()
 }
 
 #[cfg(test)]

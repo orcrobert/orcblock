@@ -25,7 +25,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Cmd {
-    /// Show the sites, the running block and the potions left (the default).
+    /// Show the sites, apps, the running block and the potions left (the default).
     Status,
     /// Add a site; a URL is cleaned up to its domain.
     Add {
@@ -37,7 +37,20 @@ enum Cmd {
         /// The site as listed.
         site: String,
     },
-    /// Block every listed site for a while: 25m, 2h, 1h30m, 1d.
+    /// Add an app by its bundle ID, like com.tinyspeck.slackmacgap.
+    AddApp {
+        /// The app's bundle ID (`osascript -e 'id of app "Slack"'` prints it).
+        bundle_id: String,
+        /// The name to show; defaults to the bundle ID.
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Remove an app (not while a block runs).
+    RemoveApp {
+        /// The app's bundle ID as listed.
+        bundle_id: String,
+    },
+    /// Block every listed site and app for a while: 25m, 2h, 1h30m, 1d.
     Start {
         /// How long, between 1 minute and 7 days.
         duration: String,
@@ -62,6 +75,10 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Status => call(client.status())?,
         Cmd::Add { site } => call(client.add_site(&site))?,
         Cmd::Remove { site } => call(client.remove_site(&site))?,
+        Cmd::AddApp { bundle_id, name } => {
+            call(client.add_app(&bundle_id, name.as_deref().unwrap_or(&bundle_id)))?
+        }
+        Cmd::RemoveApp { bundle_id } => call(client.remove_app(&bundle_id))?,
         Cmd::Start { duration } => {
             let duration = duration::parse(&duration).map_err(anyhow::Error::msg)?;
             let duration =
