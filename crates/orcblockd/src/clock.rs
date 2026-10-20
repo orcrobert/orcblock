@@ -2,6 +2,7 @@ use std::io;
 use std::time::Duration;
 
 use jiff::{Timestamp, Zoned};
+#[cfg(unix)]
 use nix::time::{ClockId, clock_gettime};
 use orcblock_core::Month;
 
@@ -21,12 +22,35 @@ pub trait Clock: Send {
 
 /// The real clocks.
 ///
-/// `monotonic` is `CLOCK_MONOTONIC`, which on macOS is
+/// On Unix `monotonic` is `CLOCK_MONOTONIC`, which on macOS is
 /// `mach_continuous_time` and includes sleep; `std::time::Instant` uses
 /// `CLOCK_UPTIME_RAW` there and stops while asleep, so it would stretch
-/// every block by the time the lid was closed.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct SystemClock;
+/// every block by the time the lid was closed. On Windows `Instant` is
+/// `QueryPerformanceCounter`, which includes sleep, measured from when the
+/// clock was made.
+#[derive(Debug, Clone, Copy)]
+pub struct SystemClock {
+    #[cfg(windows)]
+    origin: std::time::Instant,
+}
+
+impl SystemClock {
+    /// Wall time from the system; on Windows, monotonic readings count
+    /// from this call.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            #[cfg(windows)]
+            origin: std::time::Instant::now(),
+        }
+    }
+}
+
+impl Default for SystemClock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Clock for SystemClock {
     fn now(&self) -> Timestamp {
@@ -37,9 +61,18 @@ impl Clock for SystemClock {
         Month::of(Zoned::now().date())
     }
 
+    #[cfg(unix)]
     fn monotonic(&self) -> io::Result<Duration> {
         let spec = clock_gettime(ClockId::CLOCK_MONOTONIC).map_err(io::Error::from)?;
         Ok(Duration::from(spec))
+    }
+
+    // QueryPerformanceCounter, which keeps counting through sleep on
+    // current Windows. If it ever stopped, blocks would run longer than
+    // set, never shorter.
+    #[cfg(windows)]
+    fn monotonic(&self) -> io::Result<Duration> {
+        Ok(self.origin.elapsed())
     }
 }
 

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-OrcBlock is a macOS website blocker: a Tauri desktop app talking to a small root daemon that keeps the block in place even when the app is closed or the Mac reboots. A block runs for the time you set; the only way out early is one of five sleep potions per month.
+OrcBlock is a website blocker for macOS and Windows: a Tauri desktop app talking to a small root daemon that keeps the block in place even when the app is closed or the computer reboots. A block runs for the time you set; the only way out early is one of five sleep potions per month.
 Read this file before any task. Details live in docs/; open them only when relevant.
 
 ## Commands
@@ -11,13 +11,14 @@ Read this file before any task. Details live in docs/; open them only when relev
 - `cargo run -p orcblock-cli -- status`: talk to a daemon from the terminal. Add `--socket ./data/orcblockd.sock` for the dev daemon.
 - `make bundle`: build `OrcBlock.app` and the dmg into target/release/bundle.
 - `make bundle-universal`: the release build: one ad hoc signed app for Apple Silicon and Intel and `OrcBlock.dmg` in target/universal-apple-darwin/release/bundle. Merging a version bump into main releases it; see docs/releasing.md.
+- `make bundle-windows`: the Windows NSIS installer, run from Git Bash on Windows (CI's `windows` job and the release do). The app crate does not cross-compile from macOS; `cargo clippy --target x86_64-pc-windows-msvc -p orcblockd -p orcblock-ipc -p orcblock-cli` does.
 - `make site-dev`, `make site-check`, `make site-build`: the website in website/ (needs `npm ci --prefix app` and `npm ci --prefix website`). `make site-screenshots` re-renders its app screenshots. Not part of `make check`: run `make site-check` after changing app/src/lib, which the site imports. Deployed to Cloudflare Pages from main; see website/README.md.
 - `make install-helper`: install the freshly built daemon as the real LaunchDaemon (asks for sudo; changes the system). Only when the user asks.
 
 ## Map
 - crates/orcblock-core: the domain, pure and synchronous. Domain parsing and cleanup, blocklist, block sessions, the potion ledger, the `State` machine and its commands. No I/O, no clocks, no async. Time comes in as arguments.
 - crates/orcblock-ipc: the wire protocol (versioned `Request`/`Response`, newline-delimited JSON) and a small blocking client. Shared by the app, the CLI and the daemon.
-- crates/orcblockd: the root LaunchDaemon. `lib.rs` holds everything; `main.rs` only parses args and calls it. Modules: `server` (Unix socket), `store` (atomic state file), `service` (applies commands to `State`, owns the tick loop), `enforce` (the `Enforcer` trait and the macOS layers: resolver files, DNS sinkhole, pf), `dns` (the DNS message codec and sinkhole server), `install` (launchd plist, install and uninstall).
+- crates/orcblockd: the root LaunchDaemon (a SYSTEM scheduled task on Windows). `lib.rs` holds everything; `main.rs` only parses args and calls it. Modules: `server` (Unix socket, loopback TCP on Windows), `store` (atomic state file), `service` (applies commands to `State`, owns the tick loop), `enforce` (the `Enforcer` trait, the macOS layers: resolver files, DNS sinkhole, pf; and `windows`: NRPT and firewall rules), `dns` (the DNS message codec and sinkhole server), `install` (launchd plist, install and uninstall; `install::windows` for the scheduled task).
 - crates/orcblock-cli: `orcblock`, a thin terminal client over orcblock-ipc.
 - app/src-tauri (crate orcblock-app): Tauri commands, the daemon connection, favicon fetching and cache, the tray.
 - app/src: the Svelte 5 + TypeScript UI. Design tokens in app/src/lib/theme.css; the orc mascot in app/src/lib/mascot.
@@ -80,4 +81,5 @@ Read this file before any task. Details live in docs/; open them only when relev
 - macOS reads /etc/resolver/<domain> through mDNSResponder; flush with `dscacheutil -flushcache` and `killall -HUP mDNSResponder` after changes, or old answers linger.
 - pf rules live under the `com.apple/orcblock` anchor because /etc/pf.conf already loads `com.apple/*`; never edit /etc/pf.conf.
 - The daemon measures block time with a monotonic clock while running; wall-clock jumps must not shorten a block. See docs/architecture.md, "Time".
+- Windows: NRPT rules cannot name a port, so the sinkhole binds 127.0.0.1:53 there. PowerShell only ever gets the constant scripts in `enforce/windows.rs` as `-EncodedCommand`, with data on stdin; never put a domain in a command line. Paths in `Layout` use `/` and are joined per component, so tests can root them under a temp dir.
 - Tauri commands run on the async runtime; the IPC client is blocking, so call it through `tauri::async_runtime::spawn_blocking`.

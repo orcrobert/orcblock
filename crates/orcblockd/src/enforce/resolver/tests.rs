@@ -83,6 +83,7 @@ fn unmarked_files_in_the_way_are_backed_up_and_restored() {
     assert_eq!(files(&backup), Vec::<String>::new());
 }
 
+#[cfg(unix)]
 #[test]
 fn symlinks_are_left_alone() {
     let tmp = tempfile::tempdir().expect("temp dir");

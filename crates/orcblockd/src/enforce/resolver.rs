@@ -6,6 +6,7 @@
 use std::collections::BTreeSet;
 use std::fs::{self, DirBuilder};
 use std::io;
+#[cfg(unix)]
 use std::os::unix::fs::DirBuilderExt;
 use std::path::Path;
 
@@ -149,9 +150,11 @@ pub(crate) fn clear(dir: &Path, backup_dir: &Path, port: u16) -> Result<bool, En
 }
 
 fn make_dir(dir: &Path) -> Result<(), EnforceError> {
-    DirBuilder::new()
-        .recursive(true)
-        .mode(0o755)
+    let mut builder = DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    builder.mode(0o755);
+    builder
         .create(dir)
         .map_err(|source| io_err("create", dir, source))
 }

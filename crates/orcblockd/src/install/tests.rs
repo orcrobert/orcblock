@@ -1,4 +1,5 @@
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 use jiff::Timestamp;
@@ -15,9 +16,18 @@ fn ok_runner() -> FakeRunner {
 
 #[test]
 fn plist_runs_the_helper_at_load_and_keeps_it_alive() {
-    let plist = plist(&Layout::system());
+    // The macOS layout on every host, so the test also runs on Windows.
+    let layout = Layout::under("/");
+    let plist = plist(&layout);
     assert!(plist.contains("<string>com.orcrobert.orcblockd</string>"));
-    assert!(plist.contains("<string>/Library/PrivilegedHelperTools/com.orcrobert.orcblockd</string>\n\t\t<string>serve</string>"));
+    assert!(plist.contains(&format!(
+        "<string>{}</string>\n\t\t<string>serve</string>",
+        layout.helper().display()
+    )));
+    #[cfg(unix)]
+    assert!(
+        plist.contains("<string>/Library/PrivilegedHelperTools/com.orcrobert.orcblockd</string>")
+    );
     assert!(plist.contains("<key>RunAtLoad</key>\n\t<true/>"));
     assert!(plist.contains("<key>KeepAlive</key>\n\t<true/>"));
 }
@@ -32,11 +42,14 @@ fn install_copies_the_helper_and_bootstraps_it() {
 
     install(&layout, &runner, &exe).expect("installs");
     assert_eq!(fs::read(layout.helper()).expect("copied"), b"binary");
-    let mode = fs::metadata(layout.helper())
-        .expect("exists")
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o755);
+    #[cfg(unix)]
+    {
+        let mode = fs::metadata(layout.helper())
+            .expect("exists")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o755);
+    }
     assert_eq!(
         fs::read_to_string(layout.plist()).expect("written"),
         plist(&layout)

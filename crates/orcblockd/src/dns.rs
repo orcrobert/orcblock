@@ -16,15 +16,16 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::watch;
 use tokio::time::timeout;
-use tracing::{debug, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::Blocked;
 pub use wire::{Query, Rcode, RecordType};
 
-/// Where the sinkhole listens; resolver files name this port.
+/// Where the sinkhole listens; resolver files name this port. NRPT rules
+/// on Windows cannot name a port, so there it is the standard one.
 pub const DEFAULT_ADDR: SocketAddr = SocketAddr::V4(std::net::SocketAddrV4::new(
     std::net::Ipv4Addr::LOCALHOST,
-    53535,
+    if cfg!(windows) { 53 } else { 53535 },
 ));
 
 /// Where the sinkhole listens with `serve --dev`: a different port, so a dev
@@ -117,6 +118,38 @@ impl Sinkhole {
     /// The UDP address actually bound (useful with port 0).
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.udp.local_addr()
+    }
+
+    /// Binds `addr` and serves until `stopped` changes, retrying the bind
+    /// every `retry` while it fails. Another process may hold the port for
+    /// a while; the daemon must keep counting the block down and keep its
+    /// rules in place meanwhile, not exit.
+    pub async fn serve_on(
+        addr: SocketAddr,
+        blocked: Blocked,
+        mut stopped: watch::Receiver<bool>,
+        retry: Duration,
+    ) {
+        let mut failing = false;
+        loop {
+            match Self::bind(addr).await {
+                Ok(sinkhole) => {
+                    if failing {
+                        info!(%addr, "DNS sinkhole bound");
+                    }
+                    return sinkhole.serve(blocked, stopped).await;
+                }
+                Err(err) if !failing => {
+                    error!(%err, %addr, "cannot bind the DNS sinkhole; retrying");
+                    failing = true;
+                }
+                Err(_) => {}
+            }
+            tokio::select! {
+                () = tokio::time::sleep(retry) => {}
+                _ = stopped.changed() => return,
+            }
+        }
     }
 
     /// Answers queries from `blocked` until `stopped` changes.

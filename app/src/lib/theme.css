@@ -16,10 +16,11 @@
   --hatch: rgb(17 17 17 / 0.14);
   --grain-opacity: 0.05;
 
-  /* System fonts: SF Pro at its heaviest weight for structure, SF Mono for
-     data. No bundled font files. */
-  --font-macro: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  /* System fonts: SF Pro (Segoe UI on Windows) at its heaviest weight for
+     structure, SF Mono (Cascadia Mono or Consolas) for data. No bundled
+     font files. */
+  --font-macro: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, monospace;
 
   --type-micro: 500 12px/1.3 var(--font-mono);
   --type-data: 500 14px/1.3 var(--font-mono);

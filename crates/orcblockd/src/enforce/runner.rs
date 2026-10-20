@@ -1,5 +1,7 @@
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use super::EnforceError;
 
@@ -24,7 +26,29 @@ pub trait CommandRunner: Send {
     ) -> Result<Output, EnforceError>;
 }
 
-/// The real runner.
+/// How long a program may run before it is killed. PowerShell's NRPT and
+/// firewall cmdlets go through WMI, which can hang, and a hung call would
+/// hold the service lock and stop the block's clock.
+const TIMEOUT: Duration = Duration::from_secs(60);
+
+/// System variables kept for programs on Windows.
+#[cfg(windows)]
+const WINDOWS_ENV: [&str; 7] = [
+    "SystemRoot",
+    "SystemDrive",
+    "windir",
+    "ProgramData",
+    "ProgramFiles",
+    "TEMP",
+    "TMP",
+];
+
+/// Starts a console program without opening a console window.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// The real runner. On Unix programs get an empty environment; on Windows
+/// only a fixed set of system variables.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SystemRunner;
 
@@ -35,40 +59,114 @@ impl CommandRunner for SystemRunner {
         args: &[&str],
         stdin: Option<&str>,
     ) -> Result<Output, EnforceError> {
-        let fail = |reason: String| EnforceError::Program {
-            program: program.to_owned(),
-            reason,
-        };
-        let mut child = Command::new(program)
-            .args(args)
-            .env_clear()
-            .stdin(if stdin.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|err| fail(format!("could not start: {err}")))?;
-        if let (Some(input), Some(mut pipe)) = (stdin, child.stdin.take()) {
-            pipe.write_all(input.as_bytes())
-                .map_err(|err| fail(format!("write stdin: {err}")))?;
-        }
-        let output = child
-            .wait_with_output()
-            .map_err(|err| fail(format!("wait: {err}")))?;
-        let out = Output {
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        };
-        if output.status.success() {
-            Ok(out)
-        } else {
-            Err(fail(format!("{}: {}", output.status, out.stderr.trim())))
-        }
+        run_with_timeout(program, args, stdin, TIMEOUT)
     }
 }
+
+fn run_with_timeout(
+    program: &str,
+    args: &[&str],
+    stdin: Option<&str>,
+    timeout: Duration,
+) -> Result<Output, EnforceError> {
+    let fail = |reason: String| EnforceError::Program {
+        program: program.to_owned(),
+        reason,
+    };
+    let mut command = Command::new(program);
+    command.args(args).env_clear();
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // PowerShell and other system tools fail without these; nothing
+        // else from the caller's environment is passed on.
+        for key in WINDOWS_ENV {
+            if let Some(value) = std::env::var_os(key) {
+                command.env(key, value);
+            }
+        }
+        // Only the system's modules, never ones from a user's
+        // Documents folder, load into an elevated PowerShell.
+        if let Some(root) = std::env::var_os("SystemRoot") {
+            command.env(
+                "PSModulePath",
+                std::path::Path::new(&root).join(r"System32\WindowsPowerShell\v1.0\Modules"),
+            );
+        }
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let mut child = command
+        .stdin(if stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| fail(format!("could not start: {err}")))?;
+    // Every pipe on its own thread, so neither a chatty program nor one that
+    // never reads its input can hold the runner past the deadline.
+    let stdout = drain(child.stdout.take());
+    let stderr = drain(child.stderr.take());
+    let feeder = child.stdin.take().zip(stdin).map(|(mut pipe, input)| {
+        let input = input.to_owned();
+        thread::spawn(move || pipe.write_all(input.as_bytes()))
+    });
+    let deadline = Instant::now() + timeout;
+    let mut pause = Duration::from_millis(1);
+    let status = loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|err| fail(format!("wait: {err}")))?
+        {
+            break status;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(fail(format!(
+                "did not finish within {} s",
+                timeout.as_secs_f32()
+            )));
+        }
+        thread::sleep(pause);
+        pause = (pause * 2).min(Duration::from_millis(50));
+    };
+    if let Some(feeder) = feeder {
+        match feeder.join() {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => return Err(fail(format!("write stdin: {err}"))),
+            Err(_) => return Err(fail("write stdin: the writer panicked".to_owned())),
+        }
+    }
+    let text = |reader: thread::JoinHandle<Vec<u8>>| {
+        String::from_utf8_lossy(&reader.join().unwrap_or_default()).into_owned()
+    };
+    let out = Output {
+        stdout: text(stdout),
+        stderr: text(stderr),
+    };
+    if status.success() {
+        Ok(out)
+    } else {
+        Err(fail(format!("{status}: {}", out.stderr.trim())))
+    }
+}
+
+/// Reads `pipe` to the end on its own thread.
+fn drain(pipe: Option<impl Read + Send + 'static>) -> thread::JoinHandle<Vec<u8>> {
+    thread::spawn(move || {
+        let mut bytes = Vec::new();
+        if let Some(mut pipe) = pipe {
+            let _ = pipe.read_to_end(&mut bytes);
+        }
+        bytes
+    })
+}
+
+#[cfg(all(test, unix))]
+mod tests;
 
 #[cfg(test)]
 pub(crate) mod fake {

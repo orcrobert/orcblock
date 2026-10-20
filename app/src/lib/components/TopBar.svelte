@@ -21,6 +21,10 @@
     padding-left: 78px;
     border-bottom: var(--rule-thick) solid var(--rule);
   }
+  /* Windows draws its own title bar above the page. */
+  :global([data-platform="windows"]) header {
+    padding-left: var(--gutter);
+  }
   h1 {
     margin: 0;
     font: var(--type-label);

@@ -5,7 +5,7 @@ UNIVERSAL := universal-apple-darwin
 DATA_DIR := $(CURDIR)/data
 SOCKET := $(DATA_DIR)/orcblockd.sock
 
-.PHONY: check fmt fmt-check lint test deny deps versions ui-check hooks tools daemon-dev dev sidecar bundle sidecar-universal bundle-universal install-helper site-dev site-check site-build site-screenshots
+.PHONY: check fmt fmt-check lint test deny deps versions ui-check hooks tools daemon-dev dev sidecar bundle sidecar-universal bundle-universal bundle-windows install-helper site-dev site-check site-build site-screenshots
 
 check: fmt-check lint test deny deps versions ui-check
 
@@ -82,6 +82,11 @@ bundle-universal: sidecar-universal
 	ln -s /Applications $(RELEASE_DIR)/dmg/stage/Applications
 	hdiutil create -volname OrcBlock -srcfolder $(RELEASE_DIR)/dmg/stage -fs HFS+ -format UDZO -ov $(RELEASE_DIR)/dmg/OrcBlock.dmg
 	rm -rf $(RELEASE_DIR)/dmg/stage
+
+# On Windows, from Git Bash: the NSIS installer in
+# target/x86_64-pc-windows-msvc/release/bundle/nsis.
+bundle-windows:
+	sh scripts/bundle-windows.sh
 
 install-helper:
 	cargo build -p orcblockd --release --locked

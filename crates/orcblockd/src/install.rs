@@ -1,7 +1,9 @@
-//! Installing and removing the launchd job.
+//! Installing and removing the launchd job; [`windows`] does the same with
+//! a scheduled task.
 
 use std::fs::{self, DirBuilder};
 use std::io;
+#[cfg(unix)]
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -9,6 +11,8 @@ use std::time::Duration;
 use tracing::warn;
 
 use crate::{CommandRunner, EnforceError, Enforcer, LABEL, Layout, Store, StoreError, fsutil};
+
+pub mod windows;
 
 const LAUNCHCTL: &str = "/bin/launchctl";
 
@@ -32,6 +36,18 @@ pub enum InstallError {
     /// The state could not be read.
     #[error(transparent)]
     Store(#[from] StoreError),
+    /// Not running with administrator rights (Windows).
+    #[error("this needs administrator rights; run it from an elevated prompt")]
+    NotElevated,
+    /// Files appeared in a new data directory before it was locked down
+    /// (Windows); the directory was moved to the given path.
+    #[error("files appeared in the data directory before it was locked down; it was moved to {}", .0.display())]
+    Tampered(PathBuf),
+    /// The data directory is not locked down but holds a state file, which
+    /// may carry a running block (Windows). Moving it aside would end that
+    /// block, so the install stops instead.
+    #[error("{} is not locked down but holds OrcBlock's state; fix its permissions or remove it, then install again", .0.display())]
+    UnlockedState(PathBuf),
     /// Uninstalling is refused while a block runs.
     #[error("a block is running for another {}; OrcBlock can be uninstalled once it ends", format_remaining(*.0))]
     Blocking(Duration),
@@ -111,11 +127,7 @@ pub fn uninstall(
     runner: &impl CommandRunner,
     enforcer: &mut impl Enforcer,
 ) -> Result<(), InstallError> {
-    if let Some(saved) = Store::new(layout.state_file()).load()?
-        && let Some(session) = saved.state.session()
-    {
-        return Err(InstallError::Blocking(session.remaining()));
-    }
+    refuse_during_block(layout)?;
     let _ = runner.run(LAUNCHCTL, &["bootout", &format!("system/{LABEL}")], None);
     if let Err(err) = enforcer.clear() {
         warn!(%err, "cleanup after stopping the helper was incomplete");
@@ -126,12 +138,22 @@ pub fn uninstall(
     Ok(())
 }
 
+/// Fails with [`InstallError::Blocking`] while the saved state has a block.
+fn refuse_during_block(layout: &Layout) -> Result<(), InstallError> {
+    if let Some(saved) = Store::new(layout.state_file()).load()?
+        && let Some(session) = saved.state.session()
+    {
+        return Err(InstallError::Blocking(session.remaining()));
+    }
+    Ok(())
+}
+
 fn make_dir(dir: &Path) -> Result<(), InstallError> {
-    DirBuilder::new()
-        .recursive(true)
-        .mode(0o755)
-        .create(dir)
-        .map_err(io_err("create", dir))
+    let mut builder = DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    builder.mode(0o755);
+    builder.create(dir).map_err(io_err("create", dir))
 }
 
 fn io_err(action: &'static str, path: &Path) -> impl FnOnce(io::Error) -> InstallError {
