@@ -31,6 +31,6 @@ What exists and what is next, in order. `/status` reads this file. Big items get
 - [ ] Auto-update
 
 ## 5. Later
-- [ ] Block apps as well as websites: the daemon watches launches during a block and terminates blocked bundle IDs (NSWorkspace notifications or Endpoint Security). Needs a spec and probably signing.
+- [x] Block apps as well as websites: the daemon closes blocked apps during a block and the orc shield says why (spec 0004, ADR 0006)
 - [ ] Network Extension content filter as the enforcement layer once signed (ADR 0002)
 - [ ] Windows and Linux daemons behind the same `Enforcer` trait

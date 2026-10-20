@@ -1,6 +1,6 @@
 # 0004: Block macOS apps
 
-Status: approved (maintainer, 2026-10-20)
+Status: done (2026-10-20; manual QA pending)
 Issue: roadmap, "Block apps as well as websites"
 
 ## Problem
@@ -20,18 +20,18 @@ OrcBlock blocks websites only. Someone who blocks youtube.com can still open Sla
 8. **Helper not installed or too old:** the app already shows "update the helper" on a version mismatch. The app list and picker are hidden until the helper speaks protocol 2.
 
 ## Acceptance criteria
-- [ ] `BundleId` accepts only reverse-DNS IDs (ASCII alphanumerics, `-` and `.`, at least 2 labels, at most 255 characters) and compares them case-insensitively. It has table tests and proptests.
-- [ ] Apps are stored in `State` and frozen into `Session`. State files from before this feature still load.
-- [ ] A block can start with apps only, sites only, or both.
-- [ ] Removing an app during a block is refused with `Locked`. Never-block IDs are refused with `Unblockable`.
-- [ ] `PROTOCOL_VERSION` is 2, and a version-1 client gets `Version`, not a misread status.
-- [ ] During a block the daemon closes any process whose outermost `.app` bundle has a blocked ID, including helpers nested inside it and copies of the app moved elsewhere.
-- [ ] The daemon never signals pid ≤ 1, its own pid, or a process outside a `.app` bundle.
-- [ ] The kill ring of the last 8 launches is in `Status.blocked_launches`. It is never persisted.
-- [ ] The app shows the shield once per new kill entry.
-- [ ] When OrcBlock is not running and a kill happens, the daemon wakes it with `--shield` for the console user. It does this at most once per 60 s and never for root.
-- [ ] The picker filters and sorts correctly (vitest), and Enter adds the top match.
-- [ ] Dev mode never signals another user's processes. `--dev-kill-own-apps` is refused as root.
+- [x] `BundleId` accepts only reverse-DNS IDs (ASCII alphanumerics, `-` and `.`, at least 2 labels, at most 255 characters) and compares them case-insensitively. It has table tests and proptests.
+- [x] Apps are stored in `State` and frozen into `Session`. State files from before this feature still load.
+- [x] A block can start with apps only, sites only, or both.
+- [x] Removing an app during a block is refused with `Locked`. Never-block IDs are refused with `Unblockable`.
+- [x] `PROTOCOL_VERSION` is 2, and a version-1 client gets `Version`, not a misread status.
+- [x] During a block the daemon closes any process whose outermost `.app` bundle has a blocked ID, including helpers nested inside it and copies of the app moved elsewhere.
+- [x] The daemon never signals pid ≤ 1, its own pid, or a process outside a `.app` bundle.
+- [x] The kill ring of the last 8 launches is in `Status.blocked_launches`. It is never persisted.
+- [x] The app shows the shield once per new kill entry.
+- [x] When OrcBlock is not running and a kill happens, the daemon wakes it with `--shield` for the console user. It does this at most once per 60 s and never for root.
+- [x] The picker filters and sorts correctly (vitest), and Enter adds the top match.
+- [x] Dev mode never signals another user's processes. `--dev-kill-own-apps` is refused as root.
 
 ## Design
 
@@ -56,15 +56,15 @@ OrcBlock blocks websites only. Someone who blocks youtube.com can still open Sla
 ### orcblockd
 - **New module `apps.rs` with `AppGuard`:**
   - **`parse_ps` and `outermost_bundle`** are pure. They are tested against `crates/orcblockd/testdata/ps/` fixtures covering nested helpers, spaces in names and non-bundle processes.
-  - **`BundleResolver`** runs `/usr/bin/plutil -extract CFBundleIdentifier raw -o - <bundle>/Contents/Info.plist` through `CommandRunner`. It caches by bundle path.
+  - **Bundle IDs:** the daemon reads `<bundle>/Contents/Info.plist` itself (regular files of at most 1 MiB, never FIFOs or devices) and pipes it to `/usr/bin/plutil -extract CFBundleIdentifier raw -o - -` through `CommandRunner`. IDs are cached per bundle and file identity; failures are retried after 30 s, so a transient error cannot let an app run for the rest of the block. ADR 0006 has the bounds that keep a flood of made-up bundles from stalling the daemon.
   - **A `Terminator` trait:**
     - It sends SIGTERM, then SIGKILL after 3 s, using `nix::sys::signal::kill`.
     - The real implementation is used for the installed daemon.
     - `DryRunTerminator` is the dev default. It logs "would kill" but still records the launch, so the shield can be exercised.
     - `OwnUidTerminator` sits behind `--dev-kill-own-apps`. It only signals processes with the daemon's uid and is refused as root.
-  - **A `Launcher` trait:**
-    - It runs `/bin/launchctl asuser <uid> /usr/bin/open -g -b com.orcrobert.orcblock --args --shield`.
-    - `<uid>` is the owner of `/dev/console`.
+  - **A `Waker`** (in `wake.rs`, over `CommandRunner` and a `Console` trait), installed daemon only:
+    - It runs `/bin/launchctl asuser <uid> /usr/bin/sudo -u #<uid> /usr/bin/open -g -b com.orcrobert.orcblock --args --shield`, so `open` runs as the user, never as root.
+    - `<uid>` is the owner of `/dev/console`, read with `std::os::unix::fs::MetadataExt`.
   - **The kill ring:** the last 8 kills, kept in memory.
 - **Snapshot:** `/bin/ps -axww -o pid=,uid=,comm=`, run through `CommandRunner`. It runs on every 1 s tick while `blocked_apps()` is non-empty, and once in `reconcile` at block start. The same snapshot tells whether OrcBlock is running.
 
@@ -110,52 +110,53 @@ None new. Apps live in the existing `state.json`. The kill ring is in memory onl
   - Nothing in this feature ends a block.
 - **Untrusted socket input** is only ever parsed into a `BundleId`. No path from a request reaches the filesystem or a command. Bundle paths come only from `ps` output and are passed to `plutil` as a single `Command::arg`.
 - **The osascript script is a constant.** No user data is interpolated into it.
-- **`launchctl asuser`** only ever opens OrcBlock's own bundle ID with a fixed argument, at most once a minute. It is skipped when the console owner is root.
+- **`launchctl asuser`** only ever opens OrcBlock's own bundle ID with a fixed argument, at most once a minute, and drops to the console user with `sudo -u` first: a planted app claiming that ID runs as the user, not as root. It is skipped when the console owner is root.
 - **Signal safety:**
-  - The daemon never signals pid ≤ 1, its own pid, or a process outside a `.app`.
+  - The daemon never signals pid ≤ 1, its own pid, a process outside a `.app`, a process of root or a system account (uid < 501), or a bundle under `/System/Library` or `/Library/Apple`.
   - The never-block list keeps the session usable: the Finder, the Dock and the login window cannot be blocked.
 - **Accepted and documented bypasses:**
   - editing `Info.plist` in a copied app to change its ID;
   - running a non-bundle binary;
+  - starting the binary with another argv[0] or through a symlink (see ADR 0006);
   - the up to 1 s before a kill;
   - the general ADR 0002 caveat that an administrator can unload the daemon.
 
 ## Slices
 0. **Spec and ADR 0006.** Stop for approval.
 1. **Core:**
-   - [ ] `BundleId` and its parse errors, with table tests and proptests
-   - [ ] `AppList` and `AppEntry`
-   - [ ] `Session.apps`, `State::add_app`, `remove_app` and `blocked_apps`, with lock rules
-   - [ ] `start_block` accepts apps only; `NEVER_BLOCK` and `Unblockable`
-   - [ ] An old `state.json` fixture still loads
+   - [x] `BundleId` and its parse errors, with table tests and proptests
+   - [x] `AppList` and `AppEntry`
+   - [x] `Session.apps`, `State::add_app`, `remove_app` and `blocked_apps`, with lock rules
+   - [x] `start_block` accepts apps only; `NEVER_BLOCK` and `Unblockable`
+   - [x] An old `state.json` fixture still loads
 2. **ipc and CLI:**
-   - [ ] `AddApp`, `RemoveApp`, `Status.apps`, `Block.apps`, `blocked_launches` and the new error kinds
-   - [ ] `PROTOCOL_VERSION = 2`, with version mismatch tests
-   - [ ] CLI `add-app` and `remove-app`, and rendering
+   - [x] `AddApp`, `RemoveApp`, `Status.apps`, `Block.apps`, `blocked_launches` and the new error kinds
+   - [x] `PROTOCOL_VERSION = 2`, with version mismatch tests
+   - [x] CLI `add-app` and `remove-app`, and rendering
 3. **Daemon guard:**
-   - [ ] `parse_ps` and `outermost_bundle` with `testdata/ps/` fixtures
-   - [ ] `BundleResolver` with a cache (fake runner)
-   - [ ] `Terminator` (TERM, then KILL after 3 s) and its safety filters
-   - [ ] Wired into `tick` and `reconcile`, with `Service` tests using fakes
-   - [ ] The kill ring is exposed in `Status`
-   - [ ] Dry-run terminator by default in dev; `--dev-kill-own-apps` (own uid only, refused as root)
+   - [x] `parse_ps` and `outermost_bundle` with `testdata/ps/` fixtures
+   - [x] Bundle ID lookup with a cache (fake runner)
+   - [x] `Terminator` (TERM, then KILL after 3 s) and its safety filters
+   - [x] Wired into `tick` and `reconcile`, with `Service` tests using fakes
+   - [x] The kill ring is exposed in `Status`
+   - [x] Dry-run terminator by default in dev; `--dev-kill-own-apps` (own uid only, refused as root)
 4. **App picker and list:**
-   - [ ] Tauri `installed_apps` (plutil and sips, icon cache, blocking thread) behind a runner trait, with tests
-   - [ ] `app_from_path` and drag and drop of a `.app`
-   - [ ] `pick_app_in_finder` (constant osascript)
-   - [ ] `AppPicker.svelte`: grid, type-to-filter, Enter adds, "Apps open now" first
-   - [ ] `AppRow.svelte` on Home, with removal disabled during a block
-   - [ ] The Start warning lists open blocked apps
-   - [ ] vitest for the filter and sort logic; `make site-check` green
+   - [x] Tauri `installed_apps` (plutil and sips, icon cache, blocking thread) behind a runner trait, with tests
+   - [x] `app_from_path` and drag and drop of a `.app`
+   - [x] `pick_app_in_finder` (constant osascript)
+   - [x] `AppPicker.svelte`: grid, type-to-filter, Enter adds, "Apps open now" first
+   - [x] `AppRow.svelte` on Home, with removal disabled during a block
+   - [x] The Start warning lists open blocked apps
+   - [x] vitest for the filter and sort logic; `make site-check` green
 5. **Shield:**
-   - [ ] The `shield` window config and `routes/Shield.svelte`
-   - [ ] The status task opens the shield once per new `blocked_launches` entry, with tests for detecting new entries
+   - [x] The `shield` window config and `routes/Shield.svelte`
+   - [x] The status task opens the shield once per new `blocked_launches` entry, with tests for detecting new entries
 6. **Waking the app:**
-   - [ ] The `Launcher` trait and the console uid from `/dev/console`; skipped for root, at most once per 60 s, skipped when OrcBlock is running
-   - [ ] The app handles `--shield`, with tests using fakes
+   - [x] The `Waker` and the console uid from `/dev/console`; skipped for root, at most once per 60 s, skipped when OrcBlock is running
+   - [x] The app handles `--shield`, with tests using fakes
 7. **Wrap-up:**
-   - [ ] `architecture.md`, the roadmap, the README and one website line updated
-   - [ ] Spec checkboxes ticked and status set
+   - [x] `architecture.md`, the roadmap, the README and one website line updated
+   - [x] Spec checkboxes ticked and status set
 
 ## Test plan
 - **Unit tests and proptests** for `BundleId`, plus table tests for the `State` app rules.
@@ -163,7 +164,7 @@ None new. Apps live in the existing `state.json`. The kill ring is in memory onl
 - **`Service` tests** with fake `CommandRunner`, `Terminator`, `Launcher` and `Clock`.
 - **Protocol round-trip and version tests.**
 - **Tauri tests** for the app scanner with a fake runner.
-- **vitest** for the picker's filter and sort and for detecting new shield entries.
+- **vitest** for the picker's filter and sort and for what the shield shows; Rust tests (`ShieldTracker`) for detecting new shield entries.
 - **No network, and no real processes signalled in tests.**
 - **Manual checks** are done by the QA agent with the checklist below. The developing agent does not run the app.
 
@@ -175,7 +176,7 @@ None new. Apps live in the existing `state.json`. The kill ring is in memory onl
 - Use 1-minute blocks.
 
 **Setup:**
-- [ ] Start `make daemon-dev -- --dev-kill-own-apps` in one terminal, then `make dev` in another.
+- [ ] Start `make daemon-dev DAEMON_ARGS=--dev-kill-own-apps` in one terminal, then `make dev` in another.
 - [ ] Check that the status shows `mode: dry_run`.
 
 **Picker:**
@@ -189,7 +190,7 @@ None new. Apps live in the existing `state.json`. The kill ring is in memory onl
 - [ ] Opening Calculator during the block closes it within about 1 s and shows the orc shield with the time left. The shield closes after OK or about 6 s.
 - [ ] A copy of Calculator.app on the Desktop is also closed.
 - [ ] Removing Calculator during the block is refused.
-- [ ] Quit OrcBlock.app and open Calculator. OrcBlock relaunches and shows only the shield.
+- [ ] Quit OrcBlock.app and open Calculator. OrcBlock relaunches and shows only the shield. (Needs the installed app and helper from `make bundle` and `make install-helper`: the dev daemon never wakes the app.)
 - [ ] Light and dark theme both look right (shield and picker).
 
 **Ending:**
