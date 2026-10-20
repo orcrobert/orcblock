@@ -16,6 +16,7 @@
     actions: Snippet;
   } = $props();
 
+  const uid = $props.id();
   let dialog: HTMLDialogElement | undefined = $state();
 
   // The native <dialog> traps focus, closes on Escape and renders a backdrop.
@@ -26,9 +27,9 @@
   });
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="dialog-title" onclose={() => (open = false)}>
+<dialog bind:this={dialog} aria-labelledby="{uid}-title" onclose={() => (open = false)}>
   <p class="tag micro">[ {tag} ]</p>
-  <h2 id="dialog-title">{title}</h2>
+  <h2 id="{uid}-title">{title}</h2>
   <div class="body micro">{@render children()}</div>
   <div class="actions">{@render actions()}</div>
 </dialog>
