@@ -8,6 +8,7 @@
 #![warn(missing_docs)]
 
 mod app;
+mod applist;
 mod blocklist;
 mod domain;
 mod potion;
@@ -15,6 +16,7 @@ mod session;
 mod state;
 
 pub use app::{AppError, AppName, BundleId, bundles, outermost_bundle};
+pub use applist::{AppEntry, AppList};
 pub use blocklist::{Blocklist, Entry};
 pub use domain::{Domain, DomainError};
 pub use potion::{Month, MonthError, POTIONS_PER_MONTH, PotionLedger};

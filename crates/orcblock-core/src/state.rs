@@ -4,16 +4,21 @@ use std::time::Duration;
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
-use crate::{BlockDuration, Blocklist, Domain, Month, PotionLedger, Session};
+use crate::{
+    AppEntry, AppList, AppName, BlockDuration, Blocklist, BundleId, Domain, Month, PotionLedger,
+    Session,
+};
 
-/// Everything the daemon persists: the list, the running block and the
-/// potion ledger.
+/// Everything the daemon persists: the sites and apps, the running block and
+/// the potion ledger.
 ///
 /// Every command validates fully before it mutates, so a rejected command
 /// leaves the state exactly as it was.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
     blocklist: Blocklist,
+    #[serde(default)]
+    apps: AppList,
     session: Option<Session>,
     potions: PotionLedger,
 }
@@ -48,8 +53,20 @@ pub enum CommandError {
     /// The domain is not on the list.
     #[error("{0} is not on the list")]
     NotListed(Domain),
-    /// A block needs at least one site.
-    #[error("Add a site before starting a block")]
+    /// Apps cannot be removed while a block runs.
+    #[error("The orc won't move: {0} stays blocked until the block ends")]
+    AppLocked(AppName),
+    /// The app is already on the list.
+    #[error("{0} is already on the list")]
+    AppAlreadyListed(AppName),
+    /// The app is not on the list.
+    #[error("{0} is not on the list")]
+    AppNotListed(BundleId),
+    /// The app is part of macOS or `OrcBlock` and is never blocked.
+    #[error("The orc won't block {0}: your Mac or OrcBlock needs it")]
+    Unblockable(AppName),
+    /// A block needs at least one site or app.
+    #[error("Add a site or an app before starting a block")]
     EmptyBlocklist,
     /// Only one block runs at a time.
     #[error("A block is already running")]
@@ -72,6 +89,7 @@ impl State {
     pub fn new(month: Month) -> Self {
         Self {
             blocklist: Blocklist::default(),
+            apps: AppList::default(),
             session: None,
             potions: PotionLedger::new(month),
         }
@@ -81,6 +99,12 @@ impl State {
     #[must_use]
     pub fn blocklist(&self) -> &Blocklist {
         &self.blocklist
+    }
+
+    /// The list of apps.
+    #[must_use]
+    pub fn apps(&self) -> &AppList {
+        &self.apps
     }
 
     /// The running block, if any.
@@ -110,6 +134,18 @@ impl State {
             .unwrap_or_default()
     }
 
+    /// The apps to close right now: the running block's, or none. Protected
+    /// apps are left out even if a hand-edited state file lists them.
+    #[must_use]
+    pub fn blocked_apps(&self) -> BTreeSet<BundleId> {
+        self.session
+            .iter()
+            .flat_map(Session::apps)
+            .filter(|bundle_id| !bundle_id.is_protected())
+            .cloned()
+            .collect()
+    }
+
     /// Lists `domain`. During a block it is enforced at once and stays
     /// enforced until the block ends.
     pub fn add_site(&mut self, domain: Domain, now: Timestamp) -> Result<(), CommandError> {
@@ -137,7 +173,44 @@ impl State {
         Ok(())
     }
 
-    /// Starts a block over every listed site.
+    /// Lists an app. During a block it is closed from now on and stays
+    /// blocked until the block ends.
+    pub fn add_app(
+        &mut self,
+        bundle_id: BundleId,
+        name: AppName,
+        now: Timestamp,
+    ) -> Result<(), CommandError> {
+        if bundle_id.is_protected() {
+            return Err(CommandError::Unblockable(name));
+        }
+        if let Some(listed) = self.apps.get(&bundle_id) {
+            return Err(CommandError::AppAlreadyListed(listed.name.clone()));
+        }
+        self.apps.insert(AppEntry {
+            bundle_id: bundle_id.clone(),
+            name,
+            added_at: now,
+        });
+        if let Some(session) = &mut self.session {
+            session.add_app(bundle_id);
+        }
+        Ok(())
+    }
+
+    /// Unlists an app; refused while a block runs.
+    pub fn remove_app(&mut self, bundle_id: &BundleId) -> Result<(), CommandError> {
+        let Some(listed) = self.apps.get(bundle_id) else {
+            return Err(CommandError::AppNotListed(bundle_id.clone()));
+        };
+        if self.is_blocking() {
+            return Err(CommandError::AppLocked(listed.name.clone()));
+        }
+        self.apps.remove(bundle_id);
+        Ok(())
+    }
+
+    /// Starts a block over every listed site and app.
     pub fn start_block(
         &mut self,
         duration: BlockDuration,
@@ -146,11 +219,14 @@ impl State {
         if self.is_blocking() {
             return Err(CommandError::AlreadyBlocking);
         }
-        if self.blocklist.is_empty() {
+        if self.blocklist.is_empty() && self.apps.is_empty() {
             return Err(CommandError::EmptyBlocklist);
         }
         let domains = self.blocklist.domains().cloned().collect();
-        Ok(self.session.insert(Session::new(domains, duration, now)))
+        let apps = self.apps.bundle_ids().cloned().collect();
+        Ok(self
+            .session
+            .insert(Session::new(domains, apps, duration, now)))
     }
 
     /// Counts `elapsed` off the running block and ends it when no time is

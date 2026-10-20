@@ -1,0 +1,28 @@
+{
+  "blocklist": [
+    {
+      "domain": "youtube.com",
+      "added_at": "2026-10-01T09:00:00Z"
+    },
+    {
+      "domain": "reddit.com",
+      "added_at": "2026-10-02T09:00:00Z"
+    }
+  ],
+  "session": {
+    "domains": [
+      "reddit.com",
+      "youtube.com"
+    ],
+    "started_at": "2026-10-20T10:00:00Z",
+    "duration": 5400,
+    "remaining": 4800
+  },
+  "potions": {
+    "month": {
+      "year": 2026,
+      "month": 10
+    },
+    "used": 1
+  }
+}

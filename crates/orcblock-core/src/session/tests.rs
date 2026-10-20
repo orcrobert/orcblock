@@ -41,6 +41,7 @@ fn session(secs: u64) -> Session {
     let domains = BTreeSet::from([Domain::parse("youtube.com").expect("valid")]);
     Session::new(
         domains,
+        BTreeSet::new(),
         BlockDuration::from_secs(secs).expect("valid"),
         Timestamp::UNIX_EPOCH,
     )
