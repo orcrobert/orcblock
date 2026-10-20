@@ -109,3 +109,24 @@ fn client_errors_map_to_the_kinds_the_ui_switches_on() {
         assert_eq!(AppError::from(err).kind, kind, "{name}");
     }
 }
+
+#[test]
+fn only_the_shield_argument_wakes() {
+    let cases: [(&str, &[&str], bool); 4] = [
+        (
+            "plain start",
+            &["/Applications/OrcBlock.app/Contents/MacOS/orcblock-app"],
+            false,
+        ),
+        ("woken", &["orcblock-app", "--shield"], true),
+        (
+            "among others",
+            &["orcblock-app", "-psn_0_1234", "--shield"],
+            true,
+        ),
+        ("program name only", &["--shield"], false),
+    ];
+    for (case, args, want) in cases {
+        assert_eq!(woken(args.iter()), want, "{case}");
+    }
+}

@@ -3,6 +3,7 @@
 
 mod apps;
 mod favicon;
+mod shield;
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -14,10 +15,35 @@ use orcblock_core::{BlockDuration, Domain};
 use orcblock_ipc::codec::CodecError;
 use orcblock_ipc::{Client, ClientError, DEFAULT_SOCKET, ErrorKind, Status};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::apps::{Apps, InstalledApp, SystemRunner};
 use crate::favicon::Favicons;
+use crate::shield::ShieldTracker;
+
+/// The label of the orc shield window; the UI picks its route by it.
+const SHIELD: &str = "shield";
+
+/// The label of the main window, hidden until the app decides to show it.
+const MAIN: &str = "main";
+
+/// The argument the daemon starts the app with to show only the shield.
+const SHIELD_ARG: &str = "--shield";
+
+/// Whether the daemon started the app just to show the shield: then the
+/// main window stays hidden.
+fn woken<S: AsRef<str>>(args: impl IntoIterator<Item = S>) -> bool {
+    args.into_iter()
+        .skip(1)
+        .any(|arg| arg.as_ref() == SHIELD_ARG)
+}
+
+fn show_main(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN) {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
 
 /// Why a command failed, as the UI receives it.
 #[derive(Debug, Clone, Serialize)]
@@ -276,12 +302,23 @@ fn install_shell(sha256: &str) -> (&'static str, String) {
 
 /// Streams the daemon status to the window: every second during a block,
 /// every two seconds otherwise.
-fn spawn_status_task(app: AppHandle, client: Client) {
+fn spawn_status_task(app: AppHandle, client: Client, woken: bool) {
     thread::spawn(move || {
+        let mut shield = ShieldTracker::new(woken);
+        // Until the first status: a woken app with nothing to show (the
+        // block ended meanwhile) opens its window rather than sit hidden.
+        let mut waking = woken;
         loop {
             let (event, interval) = match client.status() {
                 Ok(status) => {
                     let interval = if status.block.is_some() { 1 } else { 2 };
+                    let new = shield.next(&status.blocked_launches).is_some();
+                    if new && status.block.is_some() {
+                        show_shield(&app);
+                    } else if waking {
+                        show_main(&app);
+                    }
+                    waking = false;
                     (
                         StatusEvent::Ok {
                             status: Box::new(status),
@@ -299,6 +336,33 @@ fn spawn_status_task(app: AppHandle, client: Client) {
     });
 }
 
+/// Opens the orc shield over everything, or brings it back with a fresh
+/// timer when it is already open.
+fn show_shield(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(SHIELD) {
+        let _ = window.emit_to(SHIELD, "shield", ());
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+    let built = WebviewWindowBuilder::new(app, SHIELD, WebviewUrl::App("index.html".into()))
+        .title("OrcBlock")
+        .inner_size(420.0, 300.0)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .decorations(false)
+        .always_on_top(true)
+        .visible_on_all_workspaces(true)
+        .skip_taskbar(true)
+        .center()
+        .focused(true)
+        .build();
+    if let Err(err) = built {
+        tracing::warn!(%err, "could not open the shield");
+    }
+}
+
 /// Starts the app.
 pub fn run() {
     tracing_subscriber::fmt()
@@ -308,7 +372,9 @@ pub fn run() {
     let dev = socket.is_some();
     let client = Client::new(socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET)));
 
-    let result = tauri::Builder::default()
+    let woken = woken(std::env::args());
+
+    let built = tauri::Builder::default()
         .setup(move |app| {
             let cache_dir = app.path().app_cache_dir()?;
             let home = app.path().home_dir().ok();
@@ -322,7 +388,10 @@ pub fn run() {
                 ),
                 dev,
             }));
-            spawn_status_task(app.handle().clone(), client);
+            if !woken {
+                show_main(app.handle());
+            }
+            spawn_status_task(app.handle().clone(), client, woken);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -341,9 +410,19 @@ pub fn run() {
             app_from_path,
             pick_app_in_finder
         ])
-        .run(tauri::generate_context!());
-    if let Err(err) = result {
-        tracing::error!(%err, "OrcBlock stopped");
+        .build(tauri::generate_context!());
+    match built {
+        // A click on the Dock icon brings back the main window, which a
+        // woken app never showed.
+        Ok(app) => app.run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_main(app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        }),
+        Err(err) => tracing::error!(%err, "OrcBlock stopped"),
     }
 }
 

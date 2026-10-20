@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "visible": false,
         "title": "OrcBlock",
         "width": 900,
         "height": 520,

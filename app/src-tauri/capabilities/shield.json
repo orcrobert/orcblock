@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "shield",
+  "description": "The orc shield: reads the status, hears that it should restart its timer, can be dragged by its strip, and closes itself. Nothing that changes the block.",
+  "windows": ["shield"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "allow-status"
+  ]
+}
