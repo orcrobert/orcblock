@@ -92,6 +92,65 @@ fn adds_cleaned_sites_and_reports_bad_ones() {
 }
 
 #[test]
+fn adds_apps_and_reports_bad_ones() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+    let after = status(service.handle(Command::AddApp {
+        bundle_id: "com.tinyspeck.SlackMacGap".into(),
+        name: " Slack ".into(),
+    }));
+    assert_eq!(
+        after.apps[0].bundle_id.as_str(),
+        "com.tinyspeck.slackmacgap"
+    );
+    assert_eq!(after.apps[0].name.as_str(), "Slack");
+
+    let cases = [
+        (
+            "path as id",
+            "../../etc/passwd",
+            "Evil",
+            ErrorKind::InvalidApp,
+        ),
+        (
+            "control in name",
+            "com.hnc.discord",
+            "Dis\u{7}cord",
+            ErrorKind::InvalidApp,
+        ),
+        (
+            "finder",
+            "com.apple.finder",
+            "Finder",
+            ErrorKind::Unblockable,
+        ),
+        (
+            "duplicate",
+            "com.tinyspeck.slackmacgap",
+            "Slack",
+            ErrorKind::AlreadyListed,
+        ),
+    ];
+    for (name, bundle_id, app, want) in cases {
+        let (kind, _) = refusal(service.handle(Command::AddApp {
+            bundle_id: bundle_id.into(),
+            name: app.into(),
+        }));
+        assert_eq!(kind, want, "{name}");
+    }
+    assert_eq!(service.state().apps().entries().len(), 1);
+
+    let (kind, _) = refusal(service.handle(Command::RemoveApp {
+        bundle_id: "slack".into(),
+    }));
+    assert_eq!(kind, ErrorKind::InvalidApp);
+    let after = status(service.handle(Command::RemoveApp {
+        bundle_id: "com.tinyspeck.slackmacgap".into(),
+    }));
+    assert_eq!(after.apps, Vec::new());
+}
+
+#[test]
 fn a_block_is_enforced_counted_down_and_cleared() {
     let rig = Rig::new();
     let mut service = rig.start();

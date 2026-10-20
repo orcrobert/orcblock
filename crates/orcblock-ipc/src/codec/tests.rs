@@ -8,20 +8,25 @@ use crate::Command;
 #[test]
 fn encode_appends_one_newline() {
     let line = encode(&Request::new(Command::Status)).expect("encodes");
-    assert_eq!(line, b"{\"v\":1,\"cmd\":\"status\"}\n");
+    assert_eq!(line, b"{\"v\":2,\"cmd\":\"status\"}\n");
 }
 
 #[test]
 fn decode_request_checks_the_version_first() {
-    let cases: [(&str, &[u8], ErrorKind); 3] = [
+    let cases: [(&str, &[u8], ErrorKind); 4] = [
         (
             "newer client",
-            br#"{"v":2,"cmd":"teleport"}"#,
+            br#"{"v":3,"cmd":"teleport"}"#,
+            ErrorKind::Version,
+        ),
+        (
+            "client from before apps",
+            br#"{"v":1,"cmd":"status"}"#,
             ErrorKind::Version,
         ),
         (
             "unknown command",
-            br#"{"v":1,"cmd":"teleport"}"#,
+            br#"{"v":2,"cmd":"teleport"}"#,
             ErrorKind::BadRequest,
         ),
         ("garbage", b"not json", ErrorKind::BadRequest),
@@ -36,7 +41,7 @@ fn decode_request_checks_the_version_first() {
     }
 
     assert_eq!(
-        decode_request(b"{\"v\":1,\"cmd\":\"drink_potion\"}\n"),
+        decode_request(b"{\"v\":2,\"cmd\":\"drink_potion\"}\n"),
         Ok(Request::new(Command::DrinkPotion))
     );
 }

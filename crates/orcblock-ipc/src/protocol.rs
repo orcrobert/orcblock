@@ -1,10 +1,10 @@
 use jiff::Timestamp;
 use jiff::civil::Date;
-use orcblock_core::{CommandError, Domain, Month, POTIONS_PER_MONTH, State};
+use orcblock_core::{AppName, BundleId, CommandError, Domain, Month, POTIONS_PER_MONTH, State};
 use serde::{Deserialize, Serialize};
 
 /// The protocol version both sides must agree on.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// The longest line either side accepts, newline included.
 pub const MAX_MESSAGE_LEN: usize = 1024 * 1024;
@@ -46,7 +46,19 @@ pub enum Command {
         /// The domain as listed, or any input that cleans up to it.
         site: String,
     },
-    /// Start a block over every listed site.
+    /// List an app.
+    AddApp {
+        /// The app's bundle ID, validated by the daemon.
+        bundle_id: String,
+        /// The app's display name, validated by the daemon.
+        name: String,
+    },
+    /// Unlist an app.
+    RemoveApp {
+        /// The app's bundle ID, in any case.
+        bundle_id: String,
+    },
+    /// Start a block over every listed site and app.
     StartBlock {
         /// The block's length in seconds.
         secs: u64,
@@ -106,11 +118,11 @@ impl From<&CommandError> for Response {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKind {
-    /// Sites cannot be removed during a block.
+    /// Sites and apps cannot be removed during a block.
     Locked,
-    /// The site, or a parent of it, is already listed.
+    /// The site (or a parent of it) or the app is already listed.
     AlreadyListed,
-    /// The site is not listed.
+    /// The site or app is not listed.
     NotListed,
     /// The app is part of macOS or `OrcBlock` and is never blocked.
     Unblockable,
@@ -124,6 +136,8 @@ pub enum ErrorKind {
     NoPotions,
     /// The input is not a blockable domain.
     InvalidSite,
+    /// The input is not a valid bundle ID or app name.
+    InvalidApp,
     /// The duration is out of range.
     InvalidDuration,
     /// Client and daemon speak different protocol versions.
@@ -153,10 +167,40 @@ pub struct Status {
     pub mode: Mode,
     /// The list, in the order sites were added.
     pub sites: Vec<Site>,
+    /// The listed apps, in the order they were added.
+    pub apps: Vec<App>,
     /// The running block, if any.
     pub block: Option<Block>,
     /// The sleep potions.
     pub potions: Potions,
+    /// The most recent launches of blocked apps that the daemon closed,
+    /// oldest first. Kept in memory only, so it is empty after a restart.
+    pub blocked_launches: Vec<BlockedLaunch>,
+}
+
+/// A listed app.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct App {
+    /// What blocking matches on; used for commands.
+    pub bundle_id: BundleId,
+    /// The name people read.
+    pub name: AppName,
+    /// When it was listed.
+    pub added_at: Timestamp,
+}
+
+/// A blocked app that was opened during a block and closed by the daemon.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockedLaunch {
+    /// Unique for the daemon's lifetime and increasing, so a client can tell
+    /// which launches it has already shown.
+    pub id: u64,
+    /// The app that was closed.
+    pub bundle_id: BundleId,
+    /// Its listed name.
+    pub name: AppName,
+    /// When it was closed.
+    pub at: Timestamp,
 }
 
 /// A listed site.
@@ -175,6 +219,8 @@ pub struct Site {
 pub struct Block {
     /// The domains enforced.
     pub domains: Vec<Domain>,
+    /// The apps closed while it runs.
+    pub apps: Vec<BundleId>,
     /// When the block started.
     pub started_at: Timestamp,
     /// The chosen length in seconds.
@@ -197,7 +243,8 @@ pub struct Potions {
 }
 
 impl Status {
-    /// Builds the snapshot of `state` as of `now`, in calendar `month`.
+    /// Builds the snapshot of `state` as of `now`, in calendar `month`, with
+    /// no blocked launches; the daemon fills those in from memory.
     #[must_use]
     pub fn new(
         state: &State,
@@ -216,8 +263,19 @@ impl Status {
                 added_at: entry.added_at,
             })
             .collect();
+        let apps = state
+            .apps()
+            .entries()
+            .iter()
+            .map(|entry| App {
+                bundle_id: entry.bundle_id.clone(),
+                name: entry.name.clone(),
+                added_at: entry.added_at,
+            })
+            .collect();
         let block = state.session().map(|session| Block {
             domains: session.domains().iter().cloned().collect(),
+            apps: session.apps().iter().cloned().collect(),
             started_at: session.started_at(),
             duration_secs: u64::from(session.duration()),
             remaining_secs: session.remaining().as_secs(),
@@ -234,8 +292,10 @@ impl Status {
             daemon_version: daemon_version.to_owned(),
             mode,
             sites,
+            apps,
             block,
             potions,
+            blocked_launches: Vec::new(),
         }
     }
 }
