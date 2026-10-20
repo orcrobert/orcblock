@@ -3,12 +3,15 @@
 
   let {
     open = $bindable(false),
+    wide = false,
     tag,
     title,
     children,
     actions,
   }: {
     open?: boolean;
+    /** Room for a grid, such as the app picker. */
+    wide?: boolean;
     /** Micro label in the red header strip. */
     tag: string;
     title: string;
@@ -27,7 +30,7 @@
   });
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="{uid}-title" onclose={() => (open = false)}>
+<dialog bind:this={dialog} class:wide aria-labelledby="{uid}-title" onclose={() => (open = false)}>
   <p class="tag micro">[ {tag} ]</p>
   <h2 id="{uid}-title">{title}</h2>
   <div class="body micro">{@render children()}</div>
@@ -41,6 +44,9 @@
     border: var(--rule-thick) solid var(--ink);
     background: var(--paper);
     color: var(--ink);
+  }
+  dialog.wide {
+    width: min(720px, calc(100vw - 2 * var(--gutter)));
   }
   dialog::backdrop {
     background: repeating-linear-gradient(-45deg, var(--hatch) 0 2px, transparent 2px 6px);

@@ -10,8 +10,33 @@ export interface Site {
   added_at: string;
 }
 
+/** An app on the list. */
+export interface App {
+  /** Lowercase bundle ID, used for commands and icons. */
+  bundle_id: string;
+  name: string;
+  added_at: string;
+}
+
+/** An app the orc closed during the block, newest last. */
+export interface BlockedLaunch {
+  /** Grows with every launch, so the shield shows each one once. */
+  id: number;
+  bundle_id: string;
+  name: string;
+  at: string;
+}
+
+/** An app found on this Mac for the picker. */
+export interface InstalledApp {
+  bundle_id: string;
+  name: string;
+  path: string;
+}
+
 export interface Block {
   domains: string[];
+  apps: string[];
   started_at: string;
   duration_secs: number;
   remaining_secs: number;
@@ -29,7 +54,9 @@ export interface Status {
   daemon_version: string;
   mode: "live" | "dry_run";
   sites: Site[];
+  apps: App[];
   block: Block | null;
+  blocked_launches: BlockedLaunch[];
   potions: Potions;
 }
 
@@ -51,6 +78,13 @@ export const api = {
   startBlock: (minutes: number) => invoke<Status>("start_block", { minutes }),
   drinkPotion: () => invoke<Status>("drink_potion"),
   favicon: (domain: string) => invoke<string | null>("favicon", { domain }),
+  addApp: (bundleId: string, name: string) => invoke<Status>("add_app", { bundleId, name }),
+  removeApp: (bundleId: string) => invoke<Status>("remove_app", { bundleId }),
+  installedApps: () => invoke<InstalledApp[]>("installed_apps"),
+  runningApps: () => invoke<string[]>("running_apps"),
+  appIcon: (bundleId: string) => invoke<string | null>("app_icon", { bundleId }),
+  appFromPath: (path: string) => invoke<InstalledApp>("app_from_path", { path }),
+  pickAppInFinder: () => invoke<InstalledApp | null>("pick_app_in_finder"),
   installHelper: () => invoke<void>("install_helper"),
 };
 
