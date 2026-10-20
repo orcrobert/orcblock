@@ -63,8 +63,8 @@
           No way<br />out<span class="red">.</span>
         </h1>
         <p class="lead">
-          Pick the sites. Pick the time. An orc stands guard until it's over. Closing the app,
-          quitting it or restarting your Mac changes nothing. The only way out early is a sleep
+          Pick the sites and apps. Pick the time. An orc stands guard until it's over. Closing the
+          app, quitting it or restarting your Mac changes nothing. The only way out early is a sleep
           potion, and you get five a month.
         </p>
         <HeroDownload {platform} />

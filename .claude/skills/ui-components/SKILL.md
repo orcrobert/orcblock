@@ -7,7 +7,7 @@ paths: "app/src/**"
 Look: Swiss industrial print brutalism. Follow the industrial-brutalist-ui skill (archetype 2.1); this file records how OrcBlock applies it.
 
 ## Frame
-- One window, 900 x 520 by default, resizable only between 840 x 490 and 1080 x 620 (`app/src-tauri/tauri.conf.json`). Nothing grows or scrolls except the target list inside its compartment; `html`/`body` never scroll or bounce.
+- One window, 900 x 520 by default, resizable only between 840 x 490 and 1080 x 620 (`app/src-tauri/tauri.conf.json`). Nothing grows or scrolls except the target list inside its compartment (and, inside its dialog, the app picker's grid); `html`/`body` never scroll or bounce.
 - Two compartments split by a 2 px rule: left (56 %, 500-600 px) is control: status strip, readout + orc, preset or progress strip, one action. Right is targets: header, prompt, help line, list.
 - Every zone is bounded by visible 1 px or 2 px rules. No border-radius, no shadows, no gradients except hatch patterns and the progress ticks.
 
@@ -26,7 +26,7 @@ Look: Swiss industrial print brutalism. Follow the industrial-brutalist-ui skill
 - `SiteRow`: `01`, a grayscale favicon (or an empty square), the uppercase domain, the date added and `[ × ]`, or `LOCKED` in red during a block.
 - `AppRow`: like `SiteRow` for an app: its icon, the name, an `APP` tag, the date and `[ × ]` or `LOCKED`.
 - `AppIcon`: an app's icon from `app_icon`, grayscale, or a two-letter monogram in a hairline square.
-- `AppPicker`: a wide `Dialog`: a filter prompt (Enter adds the top match), a grid of installed apps with `OPEN NOW` first, and `BROWSE IN FINDER… >>>`. Apps already listed are not offered; the order lives in `lib/picker.ts`.
+- `AppPicker`: a wide `Dialog`: a filter prompt (Enter adds the top match), a grid of installed apps with `OPEN NOW` first, and `BROWSE IN FINDER… >>>`. Apps already listed are not offered; the order lives in `lib/picker.ts`. Typing in the filter is the fast path; each tile is still a Tab stop. Icons are fetched once per app per session.
 - `PotionVials`: five 1-bit pixel vials at the top of the orc box, purple liquid for each potion left, empty outlines for used ones; always visible on Home.
 - `PotionShelf`: a `<dl>` beside the potion button during a block: `SLEEP POTIONS`, `3/5 LEFT`, `REFILL 2026-11-01`.
 - `Dialog`: square (or `wide` for a grid), 2 px ink border, hatched backdrop, red tag strip `[ CONFIRM // SLEEP POTION ]`, headline title, two cell buttons.
@@ -37,6 +37,7 @@ Look: Swiss industrial print brutalism. Follow the industrial-brutalist-ui skill
 ## Screens (`app/src/routes`, switched by state, no router)
 - `Setup`: left: `HELPER MISSING`, macro `HELPER REQUIRED`, sleeping orc, `INSTALL HELPER >>>`. Right: `[ WHAT IT DOES ]` with four numbered facts.
 - `Home` idle: left: `IDLE`, the duration picker beside the orc box (potion vials, sleeping orc, caption), `ARM // START BLOCK >>>` (disabled while there are no targets; when listed apps are open it first asks `CLOSE OPEN APPS?`). Right: targets: sites, then apps; `+ APP` opens the picker, and dropping a `.app` on the window adds it (the list gets a dashed red outline while dragging).
+- `Shield`: a second, borderless 420 x 300 window (label `shield`, same page; `main.ts` picks the route by label) on top of everything when the daemon closes a blocked app: red tag strip `[ BLOCKED // ORC-01 ]`, the guarding orc, `<APP> IS BLOCKED` with the name in red, `TIME LEFT 0:19:00`, a red strip draining over 6 s (still with reduced motion) and `OK >>>`. Escape, OK or the timer closes it; a new closed app restarts the timer, the pointer over the shield holds it (the strip pauses) until it leaves, and any key but Escape holds it until OK, so keyboard and VoiceOver users have time to read it. The title is a live region, so a second closed app is announced. The red strip is its drag handle.
 - `Home` blocking: left: `ARMED`, the countdown beside the guarding orc, potions and `DRINK >>>` behind a confirm dialog; after a potion the orc plays `drinking`, then sleeps. Right: targets with removal locked, adding still allowed.
 
 ## Rules

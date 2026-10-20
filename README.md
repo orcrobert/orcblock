@@ -1,11 +1,12 @@
 # <img src="app/src-tauri/icons/128x128@2x.png" alt="" width="48" height="48" align="center"> OrcBlock
 
-A website blocker for macOS that you can't talk your way out of. Pick the sites, pick a duration and an orc stands guard until the time is up. Closing the app, quitting it or rebooting does not end the block. The only way out early is a sleep potion, and you get five a month.
+A website and app blocker for macOS that you can't talk your way out of. Pick the sites and apps, pick a duration and an orc stands guard until the time is up. Closing the app, quitting it or rebooting does not end the block. The only way out early is a sleep potion, and you get five a month.
 
 ## How it works
 
 - **orcblockd** is a small helper that runs as a LaunchDaemon. It owns the blocklist, the timer and the potions, and it keeps going whether or not the app is open.
 - During a block, macOS sends DNS lookups for the blocked sites to the helper's local resolver, which answers with nowhere (`/etc/resolver` files, no `/etc/hosts`). A pf anchor stops browsers from going around it through DNS over HTTPS or TLS.
+- Blocked apps are closed as soon as they open, by bundle ID, wherever the app was copied to; an orc shield says why. The helper watches the process list once a second (no Endpoint Security, so it works unsigned). Finder, the Dock and other parts of macOS can never be blocked.
 - The timer counts on a monotonic clock, so changing the system clock does not shorten a block. Setting the clock back does not refill potions either.
 - **OrcBlock.app** (Tauri + Svelte) and the **orcblock** CLI are clients. They talk to the helper over a local socket.
 
@@ -25,6 +26,7 @@ Open the app. On first launch it asks for your password once to install the help
 
 ```sh
 orcblock add https://www.youtube.com/watch?v=1   # stored as youtube.com
+orcblock add-app com.tinyspeck.slackmacgap --name Slack
 orcblock start 1h30m
 orcblock status
 orcblock potion                                  # ends the block, uses one of five
