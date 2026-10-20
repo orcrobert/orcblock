@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use orcblock_core::BlockDuration;
+use orcblock_core::{BlockDuration, BundleId};
 use orcblock_ipc::{Client, ClientError, ErrorKind, Mode};
 use orcblockd::{Blocked, DryRunEnforcer, Service, Store, SystemClock, server};
 use tokio::sync::oneshot;
@@ -36,10 +36,29 @@ async fn serves_clients_over_the_socket() {
         let status = client.status().expect("status");
         assert_eq!(status.mode, Mode::DryRun);
         client.add_site("https://www.YouTube.com/").expect("adds");
+        client
+            .add_app("com.hnc.Discord", "Discord")
+            .expect("adds app");
         let status = client
             .start_block(BlockDuration::from_minutes(10).expect("valid"))
             .expect("starts");
-        assert_eq!(status.block.map(|b| b.remaining_secs), Some(600));
+        let block = status.block.expect("blocking");
+        assert_eq!(block.remaining_secs, 600);
+        assert_eq!(
+            block.apps.iter().map(BundleId::as_str).collect::<Vec<_>>(),
+            ["com.hnc.discord"]
+        );
+        let err = client.remove_app("com.hnc.discord").expect_err("locked");
+        assert!(
+            matches!(
+                err,
+                ClientError::Refused {
+                    kind: ErrorKind::Locked,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
         let err = client.remove_site("youtube.com").expect_err("locked");
         assert!(
             matches!(

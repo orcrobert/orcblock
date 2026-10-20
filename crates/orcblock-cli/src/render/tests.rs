@@ -9,12 +9,14 @@ fn idle() -> Status {
         daemon_version: "0.1.0".into(),
         mode: Mode::Live,
         sites: vec![],
+        apps: vec![],
         block: None,
         potions: Potions {
             available: 5,
             per_month: 5,
             refill_on: date(2026, 11, 1),
         },
+        blocked_launches: vec![],
     }
 }
 
@@ -46,6 +48,7 @@ fn renders_idle_and_blocking() {
     }];
     blocking.block = Some(Block {
         domains: vec![domain],
+        apps: vec![],
         started_at: Timestamp::UNIX_EPOCH,
         duration_secs: 3600,
         remaining_secs: 1500,

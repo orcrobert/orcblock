@@ -2,7 +2,7 @@ use std::io;
 use std::time::Duration;
 
 use jiff::Timestamp;
-use orcblock_core::{BlockDuration, CommandError, Domain, State};
+use orcblock_core::{AppName, BlockDuration, BundleId, CommandError, Domain, State};
 use orcblock_ipc::{Command, ErrorKind, Mode, Response, Status};
 use tracing::{error, info, warn};
 
@@ -127,6 +127,18 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
             Command::RemoveSite { site } => match Domain::parse(&site) {
                 Ok(domain) => self.change(|state| state.remove_site(&domain)),
                 Err(err) => refusal(ErrorKind::InvalidSite, &err),
+            },
+            Command::AddApp { bundle_id, name } => {
+                match BundleId::parse(&bundle_id).and_then(|id| Ok((id, AppName::parse(&name)?))) {
+                    Ok((bundle_id, name)) => {
+                        self.change(|state| state.add_app(bundle_id, name, now))
+                    }
+                    Err(err) => refusal(ErrorKind::InvalidApp, &err),
+                }
+            }
+            Command::RemoveApp { bundle_id } => match BundleId::parse(&bundle_id) {
+                Ok(bundle_id) => self.change(|state| state.remove_app(&bundle_id)),
+                Err(err) => refusal(ErrorKind::InvalidApp, &err),
             },
             Command::StartBlock { secs } => match BlockDuration::from_secs(secs) {
                 Ok(duration) => self.change(|state| state.start_block(duration, now).map(drop)),

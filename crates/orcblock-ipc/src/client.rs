@@ -93,6 +93,21 @@ impl Client {
         })
     }
 
+    /// Lists the app with `bundle_id`, shown as `name`.
+    pub fn add_app(&self, bundle_id: &str, name: &str) -> Result<Status, ClientError> {
+        self.send(Command::AddApp {
+            bundle_id: bundle_id.to_owned(),
+            name: name.to_owned(),
+        })
+    }
+
+    /// Unlists the app with `bundle_id`.
+    pub fn remove_app(&self, bundle_id: &str) -> Result<Status, ClientError> {
+        self.send(Command::RemoveApp {
+            bundle_id: bundle_id.to_owned(),
+        })
+    }
+
     /// Starts a block.
     pub fn start_block(&self, duration: BlockDuration) -> Result<Status, ClientError> {
         self.send(Command::StartBlock {

@@ -14,24 +14,37 @@ fn october() -> Month {
 #[test]
 fn requests_have_a_stable_wire_format() {
     let cases = [
-        (Command::Status, json!({"v": 1, "cmd": "status"})),
+        (Command::Status, json!({"v": 2, "cmd": "status"})),
         (
             Command::AddSite {
                 site: "https://www.youtube.com/watch".into(),
             },
-            json!({"v": 1, "cmd": "add_site", "site": "https://www.youtube.com/watch"}),
+            json!({"v": 2, "cmd": "add_site", "site": "https://www.youtube.com/watch"}),
         ),
         (
             Command::RemoveSite {
                 site: "youtube.com".into(),
             },
-            json!({"v": 1, "cmd": "remove_site", "site": "youtube.com"}),
+            json!({"v": 2, "cmd": "remove_site", "site": "youtube.com"}),
         ),
         (
             Command::StartBlock { secs: 1500 },
-            json!({"v": 1, "cmd": "start_block", "secs": 1500}),
+            json!({"v": 2, "cmd": "start_block", "secs": 1500}),
         ),
-        (Command::DrinkPotion, json!({"v": 1, "cmd": "drink_potion"})),
+        (Command::DrinkPotion, json!({"v": 2, "cmd": "drink_potion"})),
+        (
+            Command::AddApp {
+                bundle_id: "com.tinyspeck.slackmacgap".into(),
+                name: "Slack".into(),
+            },
+            json!({"v": 2, "cmd": "add_app", "bundle_id": "com.tinyspeck.slackmacgap", "name": "Slack"}),
+        ),
+        (
+            Command::RemoveApp {
+                bundle_id: "com.tinyspeck.slackmacgap".into(),
+            },
+            json!({"v": 2, "cmd": "remove_app", "bundle_id": "com.tinyspeck.slackmacgap"}),
+        ),
     ];
     for (command, want) in cases {
         let request = Request::new(command);
@@ -97,6 +110,61 @@ fn status_reflects_state() {
         start
             .checked_add(Duration::from_mins(30))
             .expect("in range")
+    );
+}
+
+#[test]
+fn status_lists_apps_and_their_block() {
+    let start = Timestamp::from_second(1_800_000_000).expect("valid");
+    let mut state = State::new(october());
+    state
+        .add_app(
+            BundleId::parse("com.hnc.Discord").expect("valid"),
+            AppName::parse("Discord").expect("valid"),
+            start,
+        )
+        .expect("adds");
+    state
+        .start_block(BlockDuration::from_minutes(30).expect("valid"), start)
+        .expect("starts");
+    let status = Status::new(&state, start, october(), Mode::Live, "0.1.0");
+    assert_eq!(
+        serde_json::to_value(&status.apps).expect("serializes"),
+        json!([{"bundle_id": "com.hnc.discord", "name": "Discord", "added_at": "2027-01-15T08:00:00Z"}])
+    );
+    let block = status.block.expect("blocking");
+    assert_eq!(
+        block.apps,
+        [BundleId::parse("com.hnc.discord").expect("valid")]
+    );
+    assert_eq!(block.domains, Vec::<Domain>::new());
+    assert_eq!(status.blocked_launches, Vec::new());
+}
+
+#[test]
+fn app_errors_map_to_kinds() {
+    let discord = AppName::parse("Discord").expect("valid");
+    let cases = [
+        (CommandError::AppLocked(discord.clone()), ErrorKind::Locked),
+        (
+            CommandError::AppAlreadyListed(discord.clone()),
+            ErrorKind::AlreadyListed,
+        ),
+        (
+            CommandError::AppNotListed(BundleId::parse("com.hnc.discord").expect("valid")),
+            ErrorKind::NotListed,
+        ),
+        (CommandError::Unblockable(discord), ErrorKind::Unblockable),
+    ];
+    for (err, want) in cases {
+        assert!(
+            matches!(Response::from(&err), Response::Error { kind, .. } if kind == want),
+            "{err:?}"
+        );
+    }
+    assert_eq!(
+        serde_json::to_value(ErrorKind::InvalidApp).expect("serializes"),
+        json!("invalid_app")
     );
 }
 

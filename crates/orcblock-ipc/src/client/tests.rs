@@ -46,7 +46,7 @@ fn returns_the_status() {
     assert_eq!(client.add_site("youtube.com").expect("ok"), status());
     assert_eq!(
         server.join().expect("server"),
-        "{\"v\":1,\"cmd\":\"add_site\",\"site\":\"youtube.com\"}\n"
+        "{\"v\":2,\"cmd\":\"add_site\",\"site\":\"youtube.com\"}\n"
     );
 }
 
