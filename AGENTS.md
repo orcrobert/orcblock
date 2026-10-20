@@ -1,6 +1,6 @@
 # AGENTS.md
 
-OrcBlock is a macOS website blocker: a Tauri desktop app talking to a small root daemon that keeps the block in place even when the app is closed or the Mac reboots. A block runs for the time you set; the only way out early is one of five sleep potions per month.
+OrcBlock is a macOS distraction blocker for websites and apps: a Tauri desktop app talking to a small root daemon that keeps the block in place even when the app is closed or the Mac reboots. A block runs for the time you set; the only way out early is one of five sleep potions per month.
 Read this file before any task. Details live in docs/; open them only when relevant.
 
 ## Commands

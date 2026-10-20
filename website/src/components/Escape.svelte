@@ -45,9 +45,7 @@
     <div class="grid">
       <div class="intro">
         <p class="headline">Try<br />it<span class="red">.</span></p>
-        <p class="lead">
-          Every website blocker has a back door. Pick one and see how the orc takes it.
-        </p>
+        <p class="lead">Every blocker has a back door. Pick one and see how the orc takes it.</p>
       </div>
 
       <div class="board">
