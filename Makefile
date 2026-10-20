@@ -4,6 +4,7 @@ MAC_TARGETS := aarch64-apple-darwin x86_64-apple-darwin
 UNIVERSAL := universal-apple-darwin
 DATA_DIR := $(CURDIR)/data
 SOCKET := $(DATA_DIR)/orcblockd.sock
+DAEMON_ARGS ?=
 
 .PHONY: check fmt fmt-check lint test deny deps versions ui-check hooks tools daemon-dev dev sidecar bundle sidecar-universal bundle-universal install-helper site-dev site-check site-build site-screenshots
 
@@ -42,7 +43,7 @@ tools:
 	cargo install cargo-deny --version $(CARGO_DENY_VERSION) --locked
 
 daemon-dev:
-	cargo run -p orcblockd -- serve --dev --data-dir $(DATA_DIR) --socket $(SOCKET)
+	cargo run -p orcblockd -- serve --dev --data-dir $(DATA_DIR) --socket $(SOCKET) $(DAEMON_ARGS)
 
 dev:
 	ORCBLOCK_SOCKET=$(SOCKET) npm --prefix app run tauri dev

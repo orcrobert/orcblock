@@ -7,6 +7,7 @@
 
 #![warn(missing_docs)]
 
+mod apps;
 mod blocked;
 mod clock;
 pub mod dns;
@@ -17,7 +18,12 @@ mod layout;
 pub mod server;
 mod service;
 mod store;
+mod wake;
 
+pub use apps::{
+    AppGuard, DryRunTerminator, KILL_AFTER, LAUNCHES_KEPT, OwnUidTerminator, Stop,
+    SystemTerminator, Terminator,
+};
 pub use blocked::Blocked;
 pub use clock::{Clock, SystemClock};
 pub use enforce::{
@@ -25,5 +31,6 @@ pub use enforce::{
     SystemRunner,
 };
 pub use layout::{LABEL, Layout};
-pub use service::{MAX_RESTART_CREDIT, Service, StartError, VERIFY_EVERY};
+pub use service::{MAX_RESTART_CREDIT, SWEEP_EVERY, Service, StartError, VERIFY_EVERY};
 pub use store::{Saved, Store, StoreError};
+pub use wake::{APP_BUNDLE_ID, Console, SystemConsole, WAKE_EVERY, Waker};

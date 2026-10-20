@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io;
 use std::time::Duration;
 
@@ -6,10 +7,13 @@ use orcblock_core::{AppName, BlockDuration, BundleId, CommandError, Domain, Stat
 use orcblock_ipc::{Command, ErrorKind, Mode, Response, Status};
 use tracing::{error, info, warn};
 
-use crate::{Blocked, Clock, Enforcer, Store, StoreError};
+use crate::{AppGuard, Blocked, Clock, Enforcer, Store, StoreError};
 
 /// How often a running block is persisted and its enforcement verified.
 pub const VERIFY_EVERY: Duration = Duration::from_secs(15);
+
+/// How often a block with apps looks for blocked apps to close.
+pub const SWEEP_EVERY: Duration = Duration::from_secs(1);
 
 /// The most time credited for a period the daemon was not running (a crash
 /// or a powered-off Mac). Bounds what setting the clock forward while the
@@ -28,9 +32,11 @@ pub struct Service<C, E> {
     clock: C,
     enforcer: E,
     blocked: Blocked,
+    apps: AppGuard,
     mode: Mode,
     last_reading: Duration,
     since_verify: Duration,
+    since_sweep: Duration,
 }
 
 /// The daemon could not start.
@@ -46,12 +52,14 @@ pub enum StartError {
 
 impl<C: Clock, E: Enforcer> Service<C, E> {
     /// Loads the saved state, credits the time the daemon was down, and
-    /// enforces whatever block is still running before returning.
+    /// enforces whatever block is still running before returning, closing
+    /// its blocked apps through `apps`.
     pub fn start(
         store: Store,
         clock: C,
         enforcer: E,
         blocked: Blocked,
+        apps: AppGuard,
         mode: Mode,
     ) -> Result<Self, StartError> {
         let now = clock.now();
@@ -81,11 +89,13 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
             clock,
             enforcer,
             blocked,
+            apps,
             mode,
             last_reading,
             since_verify: Duration::ZERO,
+            since_sweep: Duration::ZERO,
         };
-        service.reconcile();
+        service.reconcile(false);
         Ok(service)
     }
 
@@ -104,13 +114,15 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
     /// The snapshot clients see.
     #[must_use]
     pub fn status(&self) -> Status {
-        Status::new(
+        let mut status = Status::new(
             &self.state,
             self.clock.now(),
             self.clock.month(),
             self.mode,
             env!("CARGO_PKG_VERSION"),
-        )
+        );
+        status.blocked_launches = self.apps.launches();
+        status
     }
 
     /// Answers one request. The clock is advanced first, so a block that
@@ -152,7 +164,8 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
     }
 
     /// Counts monotonic time off the running block; ends it when time runs
-    /// out; persists and verifies enforcement every [`VERIFY_EVERY`].
+    /// out; closes blocked apps every [`SWEEP_EVERY`]; persists and verifies
+    /// enforcement every [`VERIFY_EVERY`].
     pub fn tick(&mut self) {
         let reading = match self.clock.monotonic() {
             Ok(reading) => reading,
@@ -167,11 +180,16 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
         if let Some(end) = self.state.advance(elapsed) {
             info!(?end, "block over");
             self.persist();
-            self.reconcile();
+            self.reconcile(false);
             return;
         }
         if !self.state.is_blocking() {
             return;
+        }
+        self.since_sweep += elapsed;
+        if self.since_sweep >= SWEEP_EVERY {
+            self.since_sweep = Duration::ZERO;
+            self.sweep_apps(true);
         }
         self.since_verify += elapsed;
         if self.since_verify >= VERIFY_EVERY {
@@ -199,8 +217,13 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
                 "The orc could not write down the change; nothing was changed",
             );
         }
+        // A change to the blocked apps (a block starting, an app added)
+        // closes apps that were already open: no shield for those. Any
+        // other change leaves recording on, so a launch it happens to catch
+        // still gets one.
+        let record = next.blocked_apps() == self.state.blocked_apps();
         self.state = next;
-        self.reconcile();
+        self.reconcile(record);
         self.ok()
     }
 
@@ -217,8 +240,9 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
 
     /// Makes enforcement match the state. The sinkhole learns about new
     /// domains before the resolver files send lookups to it, and forgets
-    /// them only after the files are gone.
-    fn reconcile(&mut self) {
+    /// them only after the files are gone. `record` says whether apps it
+    /// closes count as blocked launches.
+    fn reconcile(&mut self, record: bool) {
         let domains = self.state.blocked_domains();
         let result = if domains.is_empty() {
             let result = self.enforcer.clear();
@@ -231,6 +255,36 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
         if let Err(err) = result {
             error!(%err, "enforcement failed; retrying on the next verify");
         }
+        self.sweep_apps(record);
+    }
+
+    /// Closes running blocked apps. `record` is false when the set of
+    /// blocked apps has just been decided (block start, an app added, a
+    /// restart): those apps were open before, so they get no shield.
+    fn sweep_apps(&mut self, record: bool) {
+        let blocked = self.state.blocked_apps();
+        if blocked.is_empty() {
+            self.apps.idle();
+            return;
+        }
+        let names: BTreeMap<_, _> = blocked
+            .into_iter()
+            .map(|bundle_id| {
+                let name = self
+                    .state
+                    .apps()
+                    .get(&bundle_id)
+                    // Only a hand-edited state file blocks an app missing
+                    // from the list; it is still closed, under its ID.
+                    .map_or_else(
+                        || AppName::from_bundle_id(&bundle_id),
+                        |entry| entry.name.clone(),
+                    );
+                (bundle_id, name)
+            })
+            .collect();
+        self.apps
+            .sweep(&names, self.last_reading, self.clock.now(), record);
     }
 
     fn verify(&mut self) {
