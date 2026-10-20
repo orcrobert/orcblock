@@ -12,7 +12,7 @@
   const QUIPS = [
     "BACK TO WORK.",
     "NOT TODAY.",
-    "THE SITE IS STILL BLOCKED.",
+    "SLACK CAN WAIT.",
     "POKING ME WON'T HELP.",
     "I DON'T SLEEP. MOSTLY.",
     "GO WRITE SOMETHING.",
@@ -52,7 +52,7 @@
   <div class="page">
     <div class="bar micro">
       <span>UNIT / ORC-01</span>
-      <span class="muted wide">WEBSITE BLOCKER // MACOS</span>
+      <span class="muted wide">SITE + APP BLOCKER // MACOS</span>
       <span class="status"><span class="light" aria-hidden="true"></span>STATUS: ARMED</span>
     </div>
 

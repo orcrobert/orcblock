@@ -23,7 +23,7 @@
       ? available === 0
         ? "NO POTIONS LEFT. WAIT IT OUT."
         : "BLOCK RUNNING. THE ORC IS AWAKE."
-      : "BLOCK ENDED. SITES ARE BACK.",
+      : "BLOCK ENDED. EVERYTHING IS BACK.",
   );
 </script>
 
@@ -39,8 +39,8 @@
         <p class="headline">Five<br />a month<span class="potion">.</span></p>
         <p class="lead">
           The one way out early. Drink a sleep potion and the orc nods off on the spot: the block
-          ends and your sites come back. You get five every month, and the shelf fills back up on
-          the 1st.
+          ends and your sites and apps come back. You get five every month, and the shelf fills back
+          up on the 1st.
         </p>
         <p class="lead muted">Spend them wisely. Or try one here, these are free.</p>
       </div>
