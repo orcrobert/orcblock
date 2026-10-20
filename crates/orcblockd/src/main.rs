@@ -8,8 +8,9 @@ use clap::{Args, Parser, Subcommand};
 use orcblock_ipc::Mode;
 use orcblockd::dns::{self, Sinkhole};
 use orcblockd::{
-    Blocked, DryRunEnforcer, Enforcer, Layout, MacEnforcer, Service, Store, SystemClock,
-    SystemRunner, install, server,
+    AppGuard, Blocked, DryRunEnforcer, DryRunTerminator, Enforcer, Layout, MacEnforcer,
+    OwnUidTerminator, Service, Store, SystemClock, SystemConsole, SystemRunner, SystemTerminator,
+    Waker, install, server,
 };
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::watch;
@@ -52,6 +53,10 @@ struct ServeArgs {
     /// [default: 127.0.0.1:53535, or 127.0.0.1:53536 with --dev].
     #[arg(long)]
     dns_addr: Option<SocketAddr>,
+    /// With --dev, really close blocked apps, but only your own; refused as
+    /// root. Without it the dev daemon only logs what it would close.
+    #[arg(long, requires = "dev")]
+    dev_kill_own_apps: bool,
 }
 
 fn main() -> ExitCode {
@@ -90,9 +95,23 @@ fn serve(args: ServeArgs) -> Result<()> {
             .socket
             .unwrap_or_else(|| args.data_dir.join("orcblockd.sock"));
         let store = Store::new(args.data_dir.join("state.json"));
+        let apps = if args.dev_kill_own_apps {
+            if nix::unistd::geteuid().is_root() {
+                bail!(
+                    "--dev-kill-own-apps would close every user's apps as root; run it unprivileged"
+                );
+            }
+            AppGuard::new(
+                SystemRunner,
+                OwnUidTerminator::new(nix::unistd::getuid().as_raw()),
+            )
+        } else {
+            AppGuard::new(SystemRunner, DryRunTerminator)
+        };
         run_daemon(
             store,
             DryRunEnforcer::default(),
+            apps,
             Mode::DryRun,
             &socket,
             args.dns_addr.unwrap_or(dns::DEV_ADDR),
@@ -106,6 +125,8 @@ fn serve(args: ServeArgs) -> Result<()> {
         run_daemon(
             Store::new(layout.state_file()),
             enforcer,
+            AppGuard::new(SystemRunner, SystemTerminator)
+                .waking(Waker::new(SystemRunner, SystemConsole)),
             Mode::Live,
             &layout.socket(),
             dns_addr,
@@ -116,6 +137,7 @@ fn serve(args: ServeArgs) -> Result<()> {
 fn run_daemon<E: Enforcer + 'static>(
     store: Store,
     enforcer: E,
+    apps: AppGuard,
     mode: Mode,
     socket: &Path,
     dns_addr: SocketAddr,
@@ -127,7 +149,7 @@ fn run_daemon<E: Enforcer + 'static>(
 
     // Enforce any running block before accepting requests.
     let blocked = Blocked::default();
-    let service = Service::start(store, SystemClock, enforcer, blocked.clone(), mode)
+    let service = Service::start(store, SystemClock, enforcer, blocked.clone(), apps, mode)
         .context("start the service")?;
 
     runtime.block_on(async {

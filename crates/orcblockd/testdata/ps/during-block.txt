@@ -1,0 +1,21 @@
+    1     0 /sbin/launchd
+  312     0 /usr/libexec/logd
+  401   501 /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder
+  402   501 /System/Library/CoreServices/Dock.app/Contents/MacOS/Dock
+  612   501 /Applications/Slack.app/Contents/MacOS/Slack
+  618   501 /Applications/Slack.app/Contents/Frameworks/Slack Helper (Renderer).app/Contents/MacOS/Slack Helper (Renderer)
+  640   501 /Users/sam/Desktop/Copy of Calculator.app/Contents/MacOS/Calculator
+  655   501 /System/Applications/Calculator.app/Contents/MacOS/Calculator
+  700   501 /opt/homebrew/bin/fish
+  701   501 -fish
+  702   502 /Applications/Slack.app/Contents/MacOS/Slack
+  810     0 /Library/OrcBlock/orcblockd
+  999   501 /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+  660   501 /Users/sam/Desktop/Slack ü.app/Contents/MacOS/Slack
+  670   501 /Users/sam/w.app/Slack.app/Contents/MacOS/Slack
+  320     0 /Applications/Slack.app/Contents/MacOS/Slack
+  330   200 /System/Library/CoreServices/Software Update.app/Contents/Resources/softwareupdated
+  720   501 /System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app/Contents/MacOS/Safari
+  721     0 /System/Volumes/Preboot/Cryptexes/OS/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking
+garbage line
+

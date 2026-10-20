@@ -1,12 +1,16 @@
 use std::collections::BTreeSet;
 use std::fs;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use orcblock_core::Month;
 
 use super::*;
 use crate::DryRunEnforcer;
+use crate::Stop;
+use crate::apps::fake::{FakePlists, FakeTerminator};
 use crate::clock::fake::FakeClock;
-use crate::enforce::{DryRunCall, EnforceError};
+use crate::enforce::runner::fake::FakeRunner;
+use crate::enforce::{DryRunCall, EnforceError, Output};
 
 const START: i64 = 1_800_000_000;
 
@@ -18,10 +22,15 @@ fn d(s: &str) -> Domain {
     Domain::parse(s).expect("valid")
 }
 
+const DISCORD: &str = "  700   501 /Applications/Discord.app/Contents/MacOS/Discord\n";
+
 struct Rig {
     dir: tempfile::TempDir,
     clock: FakeClock,
     blocked: Blocked,
+    processes: Arc<Mutex<String>>,
+    runner: FakeRunner,
+    terminator: FakeTerminator,
 }
 
 impl Rig {
@@ -30,7 +39,50 @@ impl Rig {
             dir: tempfile::tempdir().expect("temp dir"),
             clock: FakeClock::new(Timestamp::from_second(START).expect("valid"), october()),
             blocked: Blocked::default(),
+            processes: Arc::default(),
+            runner: FakeRunner::new(|_| Err("unused".into())),
+            terminator: FakeTerminator::default(),
         }
+        .with_process_table()
+    }
+
+    /// Answers `ps` with [`Rig::run`]'s table and knows Discord's bundle ID.
+    fn with_process_table(mut self) -> Self {
+        let processes = Arc::clone(&self.processes);
+        self.runner = FakeRunner::by_call(move |call| {
+            let line = call.line();
+            let stdout = if line.contains("/bin/ps ") {
+                processes
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clone()
+            } else if call.stdin.as_deref() == Some("/Applications/Discord.app") {
+                "com.hnc.Discord\n".to_owned()
+            } else {
+                return Err(format!("unexpected: {line}"));
+            };
+            Ok(Output {
+                stdout,
+                stderr: String::new(),
+            })
+        });
+        self
+    }
+
+    /// Sets what `ps` reports from now on.
+    fn run(&self, table: &str) {
+        *self
+            .processes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = table.to_owned();
+    }
+
+    fn ps_calls(&self) -> usize {
+        self.runner
+            .lines()
+            .iter()
+            .filter(|line| line.contains("/bin/ps "))
+            .count()
     }
 
     fn store(&self) -> Store {
@@ -47,6 +99,7 @@ impl Rig {
             self.clock.clone(),
             enforcer,
             self.blocked.clone(),
+            AppGuard::new(self.runner.clone(), self.terminator.clone()).reading(FakePlists),
             Mode::DryRun,
         )
         .expect("starts")
@@ -351,4 +404,108 @@ fn enforcement_failures_never_end_a_block() {
         rig.blocked.blocks_name("youtube.com"),
         "the sinkhole still answers"
     );
+}
+
+fn add_discord(service: &mut Service<FakeClock, impl Enforcer>) {
+    status(service.handle(Command::AddApp {
+        bundle_id: "com.hnc.discord".into(),
+        name: "Discord".into(),
+    }));
+}
+
+#[test]
+fn an_app_block_closes_apps_and_reports_new_launches() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+    add_discord(&mut service);
+    rig.run(DISCORD);
+    assert_eq!(rig.ps_calls(), 0, "listing alone closes nothing");
+
+    let started = status(service.handle(Command::StartBlock { secs: 120 }));
+    assert_eq!(rig.terminator.take(), [(700, Stop::Term)]);
+    assert_eq!(
+        started.blocked_launches,
+        Vec::new(),
+        "open at start: the warning covered it"
+    );
+
+    rig.run("");
+    rig.clock.advance(Duration::from_secs(1));
+    service.tick();
+    rig.run("  701   501 /Applications/Discord.app/Contents/MacOS/Discord\n");
+    rig.clock.advance(Duration::from_secs(1));
+    service.tick();
+    assert_eq!(rig.terminator.take(), [(701, Stop::Term)]);
+    let launches = service.status().blocked_launches;
+    assert_eq!(launches.len(), 1);
+    assert_eq!(launches[0].name.as_str(), "Discord");
+
+    rig.clock.advance(Duration::from_secs(118));
+    service.tick();
+    assert!(!service.state().is_blocking());
+    let calls = rig.ps_calls();
+    rig.clock.advance(Duration::from_secs(5));
+    service.tick();
+    assert_eq!(rig.ps_calls(), calls, "no polling once the block is over");
+    assert_eq!(
+        service.status().blocked_launches.len(),
+        1,
+        "kept for the shield"
+    );
+}
+
+#[test]
+fn a_launch_caught_by_an_unrelated_change_still_gets_a_shield() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+    add_discord(&mut service);
+    status(service.handle(Command::StartBlock { secs: 120 }));
+
+    rig.run(DISCORD);
+    let after = add(&mut service, "example.com");
+    assert_eq!(rig.terminator.take(), [(700, Stop::Term)]);
+    assert_eq!(after.blocked_launches.len(), 1);
+}
+
+#[test]
+fn sweeps_at_most_once_a_second() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+    add_discord(&mut service);
+    status(service.handle(Command::StartBlock { secs: 120 }));
+    let calls = rig.ps_calls();
+    for _ in 0..5 {
+        status(service.handle(Command::Status));
+    }
+    assert_eq!(rig.ps_calls(), calls, "status requests do not poll");
+    rig.clock.advance(Duration::from_millis(1500));
+    service.tick();
+    assert_eq!(rig.ps_calls(), calls + 1);
+}
+
+#[test]
+fn a_restart_mid_block_closes_apps_again() {
+    let rig = Rig::new();
+    {
+        let mut service = rig.start();
+        add_discord(&mut service);
+        status(service.handle(Command::StartBlock { secs: 600 }));
+        service.save().expect("saves");
+    }
+    rig.terminator.take();
+    rig.run(DISCORD);
+    let service = rig.start();
+    assert!(service.state().is_blocking());
+    assert_eq!(rig.terminator.take(), [(700, Stop::Term)]);
+}
+
+#[test]
+fn a_sites_only_block_never_lists_processes() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+    add(&mut service, "youtube.com");
+    status(service.handle(Command::StartBlock { secs: 120 }));
+    rig.clock.advance(Duration::from_secs(10));
+    service.tick();
+    assert_eq!(rig.ps_calls(), 0);
 }

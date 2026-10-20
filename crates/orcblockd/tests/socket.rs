@@ -4,8 +4,20 @@ use std::time::Duration;
 
 use orcblock_core::{BlockDuration, BundleId};
 use orcblock_ipc::{Client, ClientError, ErrorKind, Mode};
-use orcblockd::{Blocked, DryRunEnforcer, Service, Store, SystemClock, server};
+use orcblockd::{
+    AppGuard, Blocked, CommandRunner, DryRunEnforcer, DryRunTerminator, EnforceError, Output,
+    Service, Store, SystemClock, server,
+};
 use tokio::sync::oneshot;
+
+/// A process table with nothing in it; tests never list real processes.
+struct NoProcesses;
+
+impl CommandRunner for NoProcesses {
+    fn run(&self, _: &str, _: &[&str], _: Option<&[u8]>) -> Result<Output, EnforceError> {
+        Ok(Output::default())
+    }
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn serves_clients_over_the_socket() {
@@ -17,6 +29,7 @@ async fn serves_clients_over_the_socket() {
         SystemClock,
         DryRunEnforcer::default(),
         blocked.clone(),
+        AppGuard::new(NoProcesses, DryRunTerminator),
         Mode::DryRun,
     )
     .expect("starts");
