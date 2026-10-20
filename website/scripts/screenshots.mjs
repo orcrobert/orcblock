@@ -30,6 +30,10 @@ const BROWSERS = [
 ].filter(Boolean);
 
 const SITES = ["youtube.com", "reddit.com", "x.com", "news.ycombinator.com", "instagram.com"];
+const APPS = [
+  { bundle_id: "com.tinyspeck.slackmacgap", name: "Slack" },
+  { bundle_id: "com.hnc.discord", name: "Discord" },
+];
 
 function sampleStatus() {
   const now = new Date();
@@ -48,13 +52,19 @@ function sampleStatus() {
       display: domain,
       added_at: new Date(now.getTime() - (i + 2) * 86_400_000).toISOString(),
     })),
+    apps: APPS.map((app, i) => ({
+      ...app,
+      added_at: new Date(now.getTime() - (i + 1) * 86_400_000).toISOString(),
+    })),
     block: {
       domains: SITES,
+      apps: APPS.map((app) => app.bundle_id),
       started_at: startedAt.toISOString(),
       duration_secs: duration,
       remaining_secs: remaining,
       ends_at: endsAt.toISOString(),
     },
+    blocked_launches: [],
     potions: { available: 3, per_month: 5, refill_on: day(refill) },
   };
 }
@@ -105,6 +115,7 @@ function bridge(status, icons, theme) {
       async invoke(cmd, args) {
         if (cmd === "status") return status;
         if (cmd === "favicon") return icons[args.domain] ?? null;
+        if (cmd === "app_icon") return null;
         if (cmd.startsWith("plugin:event|")) return 1;
         throw { kind: "unsupported", message: cmd };
       },

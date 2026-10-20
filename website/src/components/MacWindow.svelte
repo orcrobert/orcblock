@@ -9,7 +9,7 @@
       src={SCREENSHOTS.light}
       width={SCREENSHOTS.width}
       height={SCREENSHOTS.height}
-      alt="The OrcBlock window during a block: time remaining, the orc on guard and the list of blocked sites."
+      alt="The OrcBlock window during a block: time remaining, the orc on guard and the list of blocked sites and apps."
       loading="lazy"
       decoding="async"
     />

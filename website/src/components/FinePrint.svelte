@@ -35,7 +35,7 @@
       <div>
         <dt>Does it see what I browse?</dt>
         <dd>
-          No. Your list of sites stays on your Mac and nothing is sent anywhere. The
+          No. Your list of sites and apps stays on your Mac and nothing is sent anywhere. The
           <a href={LINKS.privacy}>privacy page</a> has the whole story.
         </dd>
       </div>

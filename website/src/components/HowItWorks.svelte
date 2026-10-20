@@ -4,8 +4,8 @@
 
   const STEPS = [
     {
-      title: "List the sites",
-      body: "Paste a link or type a name. A YouTube video link becomes youtube.com, and every corner of it is covered.",
+      title: "List the sites and apps",
+      body: "Paste a link or type a name. A YouTube video link becomes youtube.com, and every corner of it is covered. Apps come from a list of what's on your Mac.",
     },
     {
       title: "Set the timer",
@@ -13,11 +13,11 @@
     },
     {
       title: "The orc stands guard",
-      body: "The sites stop loading in every browser. Close the app, quit it, restart your Mac: the block is still there when you come back.",
+      body: "The sites stop loading in every browser, and the apps close the moment they open. Close OrcBlock, quit it, restart your Mac: the block is still there when you come back.",
     },
     {
       title: "Wait it out",
-      body: "When the timer hits zero the orc nods off and your sites come back on their own. Nothing to remember to switch off.",
+      body: "When the timer hits zero the orc nods off and your sites and apps come back on their own. Nothing to remember to switch off.",
     },
   ];
 </script>
