@@ -694,6 +694,15 @@ fn creates_a_filled_list_or_nothing() {
             },
             ErrorKind::InvalidApp,
         ),
+        (
+            "too many",
+            Command::CreateList {
+                name: "Video".into(),
+                sites: vec!["not a site".into(); orcblock_core::MAX_NEW_TARGETS + 1],
+                apps: vec![],
+            },
+            ErrorKind::InvalidList,
+        ),
     ];
     for (case, command, want) in cases {
         let (kind, _) = refusal(service.handle(command));

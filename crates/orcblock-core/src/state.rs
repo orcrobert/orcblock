@@ -83,7 +83,7 @@ pub enum CommandError {
     ListNameTaken(ListName),
     /// A list was to be created with more than [`MAX_NEW_TARGETS`] sites
     /// and apps.
-    #[error("A new list starts with at most 256 sites and apps")]
+    #[error("A new list starts with at most {} sites and apps", MAX_NEW_TARGETS)]
     TooManyTargets,
     /// [`MAX_LISTS`] lists exist already.
     #[error("The orc keeps at most 32 lists")]
