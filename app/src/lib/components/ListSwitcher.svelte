@@ -83,7 +83,9 @@
 
   /** Picks what a new list starts with; a preset also names it unless named. */
   function startFrom(next: Preset | null) {
-    const named = name.trim() !== "" && !PRESETS.some((p) => p.name === name);
+    const named =
+      name.trim() !== "" &&
+      !PRESETS.some((p) => p.name.toLowerCase() === name.trim().toLowerCase());
     if (!named) name = next?.name ?? "";
     preset = next;
   }
@@ -218,17 +220,23 @@
     {#if kind === "create"}
       <div class="from micro" role="group" aria-label="Start from">
         <span class="muted">START FROM</span>
-        <button type="button" aria-pressed={preset === null} onclick={() => startFrom(null)}
-          >EMPTY</button
+        <button
+          type="button"
+          disabled={busy}
+          aria-pressed={preset === null}
+          onclick={() => startFrom(null)}>EMPTY</button
         >
         {#each PRESETS as option (option.name)}
-          <button type="button" aria-pressed={preset === option} onclick={() => startFrom(option)}
-            >{option.name}</button
+          <button
+            type="button"
+            disabled={busy}
+            aria-pressed={preset === option}
+            onclick={() => startFrom(option)}>{option.name}</button
           >
         {/each}
       </div>
       {#if preset}
-        <p class="credit micro muted">
+        <p class="credit micro muted" title={preset.url}>
           {pad2(preset.sites.length)} SITES // BASED ON {preset.credit}
         </p>
       {/if}

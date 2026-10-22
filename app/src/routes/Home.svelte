@@ -20,7 +20,7 @@
   import PotionShelf from "../lib/components/PotionShelf.svelte";
   import SiteRow from "../lib/components/SiteRow.svelte";
   import StatusBar from "../lib/components/StatusBar.svelte";
-  import { DEFAULT_MINUTES } from "../lib/format";
+  import { DEFAULT_MINUTES, pad2 } from "../lib/format";
   import { SOCIAL, presetFor } from "../lib/presets";
   import {
     armLabel,
@@ -330,6 +330,11 @@
               : "PASTE A LINK, TYPE A NAME OR DROP AN APP")}
     </p>
 
+    <!-- Always rendered so the list keeps its grid row; empty, it has no height. -->
+    <p class="credit micro muted" title={preset?.url}>
+      {#if preset && !empty}BASED ON {preset.credit}{/if}
+    </p>
+
     <div class="list">
       {#if empty}
         <div class="none micro">
@@ -338,13 +343,12 @@
             <button class="preset" disabled={busy} onclick={startFromPreset}>
               OR START FROM {SOCIAL.name} +
             </button>
-            <p class="muted">{SOCIAL.sites.length} SITES // BASED ON {SOCIAL.credit}</p>
+            <p class="muted" title={SOCIAL.url}>
+              {pad2(SOCIAL.sites.length)} SITES // BASED ON {SOCIAL.credit}
+            </p>
           {/if}
         </div>
       {:else}
-        {#if preset}
-          <p class="credit micro muted">BASED ON {preset.credit}</p>
-        {/if}
         <ul>
           {#each list.sites as entry, i (entry.domain)}
             <SiteRow site={entry} index={i + 1} {locked} onremove={removeSite} />
@@ -426,7 +430,7 @@
   .targets {
     container: targets / inline-size;
     display: grid;
-    grid-template-rows: 28px 40px auto 1fr;
+    grid-template-rows: 28px 40px auto auto 1fr;
     min-height: 0;
   }
   .action .label {
@@ -520,8 +524,11 @@
     background: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 8px);
     text-align: center;
   }
+  /* A paper plate keeps muted text readable over the hatch. */
   .none p {
     margin: 0;
+    padding: 2px 6px;
+    background: var(--paper);
   }
   .preset {
     height: 32px;
@@ -533,6 +540,11 @@
     letter-spacing: inherit;
     text-transform: inherit;
     cursor: pointer;
+  }
+  .preset:disabled {
+    background: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, var(--paper) 1px 8px);
+    color: var(--ink-muted);
+    cursor: default;
   }
   .preset:hover:not(:disabled) {
     background: var(--ink);
@@ -546,5 +558,9 @@
     margin: 0;
     padding: 6px var(--gutter);
     border-bottom: var(--rule-thin) solid var(--rule);
+  }
+  .credit:empty {
+    padding: 0;
+    border: none;
   }
 </style>
