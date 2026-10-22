@@ -5,7 +5,7 @@
   const STEPS = [
     {
       title: "List the sites and apps",
-      body: "Paste a link or type a name. A YouTube video link becomes youtube.com, and every corner of it is covered. Apps come from a list of what's on your Mac.",
+      body: "Paste a link or type a name. A YouTube video link becomes youtube.com, and every corner of it is covered. Apps come from a list of what's on your Mac. Keep a few lists, like work and evenings, and block the ones you need.",
     },
     {
       title: "Set the timer",
