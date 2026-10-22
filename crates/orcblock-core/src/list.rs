@@ -38,6 +38,7 @@ pub enum ListNameError {
 
 /// A named list of sites and apps.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "StoredList")]
 pub struct TargetList {
     pub(crate) id: ListId,
     pub(crate) name: ListName,
@@ -45,6 +46,17 @@ pub struct TargetList {
     pub(crate) sites: Blocklist,
     #[serde(default)]
     pub(crate) apps: AppList,
+}
+
+/// A stored list, whose name may clean down to nothing.
+#[derive(Deserialize)]
+struct StoredList {
+    id: ListId,
+    name: String,
+    #[serde(default)]
+    sites: Blocklist,
+    #[serde(default)]
+    apps: AppList,
 }
 
 impl ListId {
@@ -137,6 +149,19 @@ impl TargetList {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.sites.is_empty() && self.apps.is_empty()
+    }
+}
+
+impl From<StoredList> for TargetList {
+    fn from(stored: StoredList) -> Self {
+        let name = ListName::cleaned(&stored.name)
+            .unwrap_or_else(|| ListName(format!("List {}", stored.id)));
+        Self {
+            id: stored.id,
+            name,
+            sites: stored.sites,
+            apps: stored.apps,
+        }
     }
 }
 

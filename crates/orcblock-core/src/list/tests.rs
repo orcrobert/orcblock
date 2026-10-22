@@ -56,6 +56,14 @@ fn stored_names_are_cleaned_not_refused() {
     }
 }
 
+#[test]
+fn a_stored_list_without_a_readable_name_gets_one() {
+    let json = r#"{"id": 4, "name": "\u200B\u202E"}"#;
+    let list: TargetList = serde_json::from_str(json).expect("loads");
+    assert_eq!(list.name().as_str(), "List 4");
+    assert!(list.is_empty());
+}
+
 proptest! {
     #[test]
     fn parsed_names_round_trip(input in "\\PC{0,60}") {
