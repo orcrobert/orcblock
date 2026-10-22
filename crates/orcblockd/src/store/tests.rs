@@ -1,7 +1,7 @@
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 
-use orcblock_core::{Domain, Month};
+use orcblock_core::{Domain, ListId, Month};
 
 use super::*;
 
@@ -9,6 +9,7 @@ fn state() -> State {
     let mut state = State::new(Month::new(2026, 10).expect("valid"));
     state
         .add_site(
+            ListId::new(1),
             Domain::parse("youtube.com").expect("valid"),
             Timestamp::UNIX_EPOCH,
         )

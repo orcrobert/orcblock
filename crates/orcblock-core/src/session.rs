@@ -4,7 +4,7 @@ use std::time::Duration;
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
-use crate::{BundleId, Domain};
+use crate::{BundleId, Domain, ListId};
 
 /// How long a block runs: between one minute and seven days, in whole
 /// seconds.
@@ -75,6 +75,10 @@ impl From<BlockDuration> for u64 {
 /// daemon uses a monotonic clock), so wall-clock changes cannot shorten it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Session {
+    /// Empty only in sessions saved before lists; the state fills it in on
+    /// load.
+    #[serde(default)]
+    pub(crate) lists: BTreeSet<ListId>,
     domains: BTreeSet<Domain>,
     #[serde(default)]
     apps: BTreeSet<BundleId>,
@@ -86,18 +90,33 @@ pub struct Session {
 
 impl Session {
     pub(crate) fn new(
+        lists: BTreeSet<ListId>,
         domains: BTreeSet<Domain>,
         apps: BTreeSet<BundleId>,
         duration: BlockDuration,
         now: Timestamp,
     ) -> Self {
         Self {
+            lists,
             domains,
             apps,
             started_at: now,
             duration,
             remaining: duration.get(),
         }
+    }
+
+    /// The lists this block was started over. Additions to them join the
+    /// block; their entries cannot be removed while it runs.
+    #[must_use]
+    pub fn lists(&self) -> &BTreeSet<ListId> {
+        &self.lists
+    }
+
+    /// True when `list` is part of this block.
+    #[must_use]
+    pub fn includes(&self, list: ListId) -> bool {
+        self.lists.contains(&list)
     }
 
     /// The domains this block enforces.

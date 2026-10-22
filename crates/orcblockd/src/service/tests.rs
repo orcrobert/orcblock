@@ -191,7 +191,7 @@ fn adds_apps_and_reports_bad_ones() {
         }));
         assert_eq!(kind, want, "{name}");
     }
-    assert_eq!(service.state().apps().entries().len(), 1);
+    assert_eq!(service.state().lists()[0].apps().entries().len(), 1);
 
     let (kind, _) = refusal(service.handle(Command::RemoveApp {
         bundle_id: "slack".into(),
@@ -320,7 +320,7 @@ fn a_corrupt_state_file_is_moved_aside() {
     let rig = Rig::new();
     fs::write(rig.store().path(), "garbage").expect("writes");
     let service = rig.start();
-    assert!(service.state().blocklist().is_empty());
+    assert!(service.state().lists()[0].sites().is_empty());
     assert!(rig.dir.path().join("state.json.corrupt").exists());
 }
 
@@ -367,7 +367,7 @@ fn a_change_that_cannot_be_saved_is_refused() {
         site: "youtube.com".into(),
     }));
     assert_eq!(kind, ErrorKind::Internal);
-    assert!(service.state().blocklist().is_empty());
+    assert!(service.state().lists()[0].sites().is_empty());
 }
 
 #[derive(Debug, Default)]

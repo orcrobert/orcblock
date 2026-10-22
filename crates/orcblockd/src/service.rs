@@ -3,7 +3,9 @@ use std::io;
 use std::time::Duration;
 
 use jiff::Timestamp;
-use orcblock_core::{AppName, BlockDuration, BundleId, CommandError, Domain, State};
+use orcblock_core::{
+    AppName, BlockDuration, BundleId, CommandError, Domain, ListId, State, TargetList,
+};
 use orcblock_ipc::{Command, ErrorKind, Mode, Response, Status};
 use tracing::{error, info, warn};
 
@@ -130,30 +132,38 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
     pub fn handle(&mut self, command: Command) -> Response {
         self.tick();
         let now = self.clock.now();
+        let first = self
+            .state
+            .lists()
+            .first()
+            .map_or(ListId::new(1), TargetList::id);
+        let every: Vec<ListId> = self.state.lists().iter().map(TargetList::id).collect();
         match command {
             Command::Status => self.ok(),
             Command::AddSite { site } => match Domain::parse(&site) {
-                Ok(domain) => self.change(|state| state.add_site(domain, now)),
+                Ok(domain) => self.change(|state| state.add_site(first, domain, now)),
                 Err(err) => refusal(ErrorKind::InvalidSite, &err),
             },
             Command::RemoveSite { site } => match Domain::parse(&site) {
-                Ok(domain) => self.change(|state| state.remove_site(&domain)),
+                Ok(domain) => self.change(|state| state.remove_site(first, &domain)),
                 Err(err) => refusal(ErrorKind::InvalidSite, &err),
             },
             Command::AddApp { bundle_id, name } => {
                 match BundleId::parse(&bundle_id).and_then(|id| Ok((id, AppName::parse(&name)?))) {
                     Ok((bundle_id, name)) => {
-                        self.change(|state| state.add_app(bundle_id, name, now))
+                        self.change(|state| state.add_app(first, bundle_id, name, now))
                     }
                     Err(err) => refusal(ErrorKind::InvalidApp, &err),
                 }
             }
             Command::RemoveApp { bundle_id } => match BundleId::parse(&bundle_id) {
-                Ok(bundle_id) => self.change(|state| state.remove_app(&bundle_id)),
+                Ok(bundle_id) => self.change(|state| state.remove_app(first, &bundle_id)),
                 Err(err) => refusal(ErrorKind::InvalidApp, &err),
             },
             Command::StartBlock { secs } => match BlockDuration::from_secs(secs) {
-                Ok(duration) => self.change(|state| state.start_block(duration, now).map(drop)),
+                Ok(duration) => {
+                    self.change(|state| state.start_block(&every, duration, now).map(drop))
+                }
                 Err(err) => refusal(ErrorKind::InvalidDuration, &err),
             },
             Command::DrinkPotion => {
@@ -272,8 +282,9 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
             .map(|bundle_id| {
                 let name = self
                     .state
-                    .apps()
-                    .get(&bundle_id)
+                    .lists()
+                    .iter()
+                    .find_map(|list| list.apps().get(&bundle_id))
                     // Only a hand-edited state file blocks an app missing
                     // from the list; it is still closed, under its ID.
                     .map_or_else(

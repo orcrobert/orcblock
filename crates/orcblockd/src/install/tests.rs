@@ -2,7 +2,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 
 use jiff::Timestamp;
-use orcblock_core::{BlockDuration, Domain, Month, State};
+use orcblock_core::{BlockDuration, Domain, ListId, Month, State};
 
 use super::*;
 use crate::DryRunEnforcer;
@@ -66,12 +66,14 @@ fn uninstall_is_refused_during_a_block_and_keeps_the_state() {
     let mut state = State::new(Month::new(2026, 10).expect("valid"));
     state
         .add_site(
+            ListId::new(1),
             Domain::parse("x.com").expect("valid"),
             Timestamp::UNIX_EPOCH,
         )
         .expect("adds");
     state
         .start_block(
+            &[ListId::new(1)],
             BlockDuration::from_minutes(90).expect("valid"),
             Timestamp::UNIX_EPOCH,
         )

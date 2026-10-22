@@ -40,6 +40,7 @@ fn duration_bounds() {
 fn session(secs: u64) -> Session {
     let domains = BTreeSet::from([Domain::parse("youtube.com").expect("valid")]);
     Session::new(
+        BTreeSet::new(),
         domains,
         BTreeSet::new(),
         BlockDuration::from_secs(secs).expect("valid"),

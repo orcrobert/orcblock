@@ -99,10 +99,15 @@ impl Response {
 impl From<&CommandError> for Response {
     fn from(err: &CommandError) -> Self {
         let kind = match err {
-            CommandError::Locked(_) | CommandError::AppLocked(_) => ErrorKind::Locked,
-            CommandError::AlreadyListed { .. } | CommandError::AppAlreadyListed(_) => {
-                ErrorKind::AlreadyListed
-            }
+            CommandError::Locked(_)
+            | CommandError::AppLocked(_)
+            | CommandError::ListLocked(_)
+            | CommandError::LastList => ErrorKind::Locked,
+            CommandError::AlreadyListed { .. }
+            | CommandError::AppAlreadyListed(_)
+            | CommandError::ListNameTaken(_) => ErrorKind::AlreadyListed,
+            CommandError::ListNotFound(_) => ErrorKind::ListNotFound,
+            CommandError::TooManyLists => ErrorKind::TooManyLists,
             CommandError::NotListed(_) | CommandError::AppNotListed(_) => ErrorKind::NotListed,
             CommandError::Unblockable(_) => ErrorKind::Unblockable,
             CommandError::EmptyBlocklist => ErrorKind::EmptyBlocklist,
@@ -124,6 +129,10 @@ pub enum ErrorKind {
     AlreadyListed,
     /// The site or app is not listed.
     NotListed,
+    /// No list has the given ID.
+    ListNotFound,
+    /// The most lists the daemon keeps exist already.
+    TooManyLists,
     /// The app is part of macOS or `OrcBlock` and is never blocked.
     Unblockable,
     /// A block needs at least one site or app.
@@ -254,9 +263,9 @@ impl Status {
         daemon_version: &str,
     ) -> Self {
         let sites = state
-            .blocklist()
-            .entries()
+            .lists()
             .iter()
+            .flat_map(|list| list.sites().entries())
             .map(|entry| Site {
                 display: entry.domain.to_unicode(),
                 domain: entry.domain.clone(),
@@ -264,9 +273,9 @@ impl Status {
             })
             .collect();
         let apps = state
-            .apps()
-            .entries()
+            .lists()
             .iter()
+            .flat_map(|list| list.apps().entries())
             .map(|entry| App {
                 bundle_id: entry.bundle_id.clone(),
                 name: entry.name.clone(),

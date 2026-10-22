@@ -2,10 +2,12 @@ use std::time::Duration;
 
 use jiff::Timestamp;
 use jiff::civil::date;
-use orcblock_core::BlockDuration;
+use orcblock_core::{BlockDuration, ListId};
 use serde_json::json;
 
 use super::*;
+
+const FIRST: ListId = ListId::new(1);
 
 fn october() -> Month {
     Month::new(2026, 10).expect("valid month")
@@ -77,7 +79,7 @@ fn status_reflects_state() {
     let start = Timestamp::from_second(1_800_000_000).expect("valid");
     let mut state = State::new(october());
     state
-        .add_site(Domain::parse("bücher.de").expect("valid"), start)
+        .add_site(FIRST, Domain::parse("bücher.de").expect("valid"), start)
         .expect("adds");
     let idle = Status::new(&state, start, october(), Mode::DryRun, "0.1.0");
     assert_eq!(idle.sites[0].domain.as_ascii(), "xn--bcher-kva.de");
@@ -93,7 +95,11 @@ fn status_reflects_state() {
     );
 
     state
-        .start_block(BlockDuration::from_minutes(30).expect("valid"), start)
+        .start_block(
+            &[FIRST],
+            BlockDuration::from_minutes(30).expect("valid"),
+            start,
+        )
         .expect("starts");
     state.advance(Duration::from_mins(10));
     let now = start
@@ -119,13 +125,18 @@ fn status_lists_apps_and_their_block() {
     let mut state = State::new(october());
     state
         .add_app(
+            FIRST,
             BundleId::parse("com.hnc.Discord").expect("valid"),
             AppName::parse("Discord").expect("valid"),
             start,
         )
         .expect("adds");
     state
-        .start_block(BlockDuration::from_minutes(30).expect("valid"), start)
+        .start_block(
+            &[FIRST],
+            BlockDuration::from_minutes(30).expect("valid"),
+            start,
+        )
         .expect("starts");
     let status = Status::new(&state, start, october(), Mode::Live, "0.1.0");
     assert_eq!(
