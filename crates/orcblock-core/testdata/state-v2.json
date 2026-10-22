@@ -1,0 +1,33 @@
+{
+  "blocklist": [
+    {
+      "domain": "youtube.com",
+      "added_at": "2026-10-01T09:00:00Z"
+    }
+  ],
+  "apps": [
+    {
+      "bundle_id": "com.hnc.discord",
+      "name": "Discord",
+      "added_at": "2026-10-02T09:00:00Z"
+    }
+  ],
+  "session": {
+    "domains": [
+      "youtube.com"
+    ],
+    "apps": [
+      "com.hnc.discord"
+    ],
+    "started_at": "2026-10-21T10:00:00Z",
+    "duration": 3600,
+    "remaining": 1200
+  },
+  "potions": {
+    "month": {
+      "year": 2026,
+      "month": 10
+    },
+    "used": 2
+  }
+}

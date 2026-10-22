@@ -50,7 +50,7 @@ pub struct TargetList {
 impl ListId {
     /// The ID as a number, for the wire and the command line.
     #[must_use]
-    pub fn new(id: u32) -> Self {
+    pub const fn new(id: u32) -> Self {
         Self(id)
     }
 
@@ -75,6 +75,12 @@ impl ListName {
             return Err(ListNameError::Unreadable);
         }
         Ok(Self(name.to_owned()))
+    }
+
+    /// "My list": the name of a fresh state's list, which also takes
+    /// whatever was on the single list of releases before lists.
+    pub(crate) fn first() -> Self {
+        Self("My list".to_owned())
     }
 
     /// Drops what [`ListName::parse`] refuses instead of failing; `None`
