@@ -138,6 +138,7 @@ impl From<&CommandError> for Response {
             | CommandError::ListNameTaken(_) => ErrorKind::AlreadyListed,
             CommandError::ListNotFound(_) => ErrorKind::ListNotFound,
             CommandError::TooManyLists => ErrorKind::TooManyLists,
+            CommandError::TooManyTargets => ErrorKind::InvalidList,
             CommandError::NotListed(_) | CommandError::AppNotListed(_) => ErrorKind::NotListed,
             CommandError::Unblockable(_) => ErrorKind::Unblockable,
             CommandError::EmptyBlocklist => ErrorKind::EmptyBlocklist,
@@ -177,7 +178,8 @@ pub enum ErrorKind {
     InvalidSite,
     /// The input is not a valid bundle ID or app name.
     InvalidApp,
-    /// The input is not a valid list name.
+    /// The input is not a valid list name, or a new list was to hold too
+    /// many sites and apps.
     InvalidList,
     /// The duration is out of range.
     InvalidDuration,
