@@ -21,6 +21,7 @@
   import SiteRow from "../lib/components/SiteRow.svelte";
   import StatusBar from "../lib/components/StatusBar.svelte";
   import { DEFAULT_MINUTES } from "../lib/format";
+  import { SOCIAL, presetFor } from "../lib/presets";
   import {
     armLabel,
     chosenLists,
@@ -65,6 +66,8 @@
   const blockedLists = $derived(block?.lists ?? []);
   const locked = $derived(blockedLists.includes(list.id));
   const empty = $derived(list.sites.length === 0 && list.apps.length === 0);
+  const preset = $derived(presetFor(list));
+  const offerPreset = $derived(!status.lists.some((entry) => presetFor(entry) === SOCIAL));
   const listed = $derived(new Set(list.apps.map((app) => app.bundle_id)));
 
   async function run(action: () => Promise<Status>): Promise<boolean> {
@@ -112,9 +115,9 @@
     saveSkipped(next, status.lists);
   }
 
-  async function createList(name: string): Promise<string | null> {
+  async function createList(name: string, sites: readonly string[] = []): Promise<string | null> {
     try {
-      const next = await api.createList(name);
+      const next = await api.createList(name, [...sites]);
       onstatus(next);
       // The daemon appends new lists, so the last one is the new one.
       const created = next.lists.at(-1);
@@ -123,6 +126,12 @@
     } catch (err) {
       return errorMessage(err);
     }
+  }
+
+  async function startFromPreset() {
+    busy = true;
+    siteError = (await createList(SOCIAL.name, SOCIAL.sites)) ?? "";
+    busy = false;
   }
 
   async function renameList(name: string): Promise<string | null> {
@@ -323,8 +332,19 @@
 
     <div class="list">
       {#if empty}
-        <p class="none micro muted">NO TARGETS // ADD A SITE OR AN APP ABOVE</p>
+        <div class="none micro">
+          <p class="muted">NO TARGETS // ADD A SITE OR AN APP ABOVE</p>
+          {#if offerPreset}
+            <button class="preset" disabled={busy} onclick={startFromPreset}>
+              OR START FROM {SOCIAL.name} +
+            </button>
+            <p class="muted">{SOCIAL.sites.length} SITES // BASED ON {SOCIAL.credit}</p>
+          {/if}
+        </div>
       {:else}
+        {#if preset}
+          <p class="credit micro muted">BASED ON {preset.credit}</p>
+        {/if}
         <ul>
           {#each list.sites as entry, i (entry.domain)}
             <SiteRow site={entry} index={i + 1} {locked} onremove={removeSite} />
@@ -492,9 +512,39 @@
   }
   .none {
     display: grid;
-    place-items: center;
+    place-content: center;
+    justify-items: center;
+    gap: 12px;
     height: 100%;
-    margin: 0;
+    padding: 0 var(--gutter);
     background: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 8px);
+    text-align: center;
+  }
+  .none p {
+    margin: 0;
+  }
+  .preset {
+    height: 32px;
+    padding: 0 12px;
+    border: var(--rule-thin) solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+  }
+  .preset:hover:not(:disabled) {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .preset:focus-visible {
+    outline: var(--rule-thick) solid var(--red);
+    outline-offset: 1px;
+  }
+  .credit {
+    margin: 0;
+    padding: 6px var(--gutter);
+    border-bottom: var(--rule-thin) solid var(--rule);
   }
 </style>

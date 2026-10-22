@@ -3,6 +3,7 @@
   import type { List } from "../api";
   import { pad2 } from "../format";
   import { targetCount } from "../lists";
+  import { PRESETS, type Preset } from "../presets";
   import Button from "./Button.svelte";
   import Dialog from "./Dialog.svelte";
 
@@ -26,7 +27,7 @@
     onselect: (id: number) => void;
     ontoggle: (id: number) => void;
     /** Each resolves to an error to show in the dialog, or null when done. */
-    oncreate: (name: string) => Promise<string | null>;
+    oncreate: (name: string, sites: readonly string[]) => Promise<string | null>;
     onrename: (name: string) => Promise<string | null>;
     ondelete: () => Promise<void>;
   } = $props();
@@ -37,6 +38,7 @@
   let kind = $state<"create" | "rename">("create");
   let deleting = $state(false);
   let name = $state("");
+  let preset = $state.raw<Preset | null>(null);
   let nameError = $state("");
   let busy = $state(false);
   let switcher: HTMLElement | undefined = $state();
@@ -63,6 +65,7 @@
     open = false;
     kind = next;
     name = next === "rename" ? current.name : "";
+    preset = null;
     nameError = "";
     naming = true;
     await tick();
@@ -72,10 +75,17 @@
   async function submitName(event: SubmitEvent) {
     event.preventDefault();
     busy = true;
-    const failed = await (kind === "create" ? oncreate(name) : onrename(name));
+    const failed = await (kind === "create" ? oncreate(name, preset?.sites ?? []) : onrename(name));
     busy = false;
     if (failed) nameError = failed;
     else naming = false;
+  }
+
+  /** Picks what a new list starts with; a preset also names it unless named. */
+  function startFrom(next: Preset | null) {
+    const named = name.trim() !== "" && !PRESETS.some((p) => p.name === name);
+    if (!named) name = next?.name ?? "";
+    preset = next;
   }
 
   async function confirmDelete() {
@@ -205,6 +215,24 @@
       oninput={() => (nameError = "")}
     />
     <p id="{uid}-name-error" class="error" role={nameError ? "alert" : undefined}>{nameError}</p>
+    {#if kind === "create"}
+      <div class="from micro" role="group" aria-label="Start from">
+        <span class="muted">START FROM</span>
+        <button type="button" aria-pressed={preset === null} onclick={() => startFrom(null)}
+          >EMPTY</button
+        >
+        {#each PRESETS as option (option.name)}
+          <button type="button" aria-pressed={preset === option} onclick={() => startFrom(option)}
+            >{option.name}</button
+          >
+        {/each}
+      </div>
+      {#if preset}
+        <p class="credit micro muted">
+          {pad2(preset.sites.length)} SITES // BASED ON {preset.credit}
+        </p>
+      {/if}
+    {/if}
   </form>
   {#snippet actions()}
     <Button variant="plain" onclick={() => (naming = false)}>ABORT</Button>
@@ -382,5 +410,23 @@
   }
   .error:empty {
     display: none;
+  }
+  .from {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .from button {
+    height: 28px;
+    padding: 0 10px;
+    border: var(--rule-thin) solid var(--ink);
+  }
+  .from button[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .credit {
+    margin: 0;
   }
 </style>
