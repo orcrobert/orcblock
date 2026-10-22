@@ -111,10 +111,11 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<()> {
     let client = Client::new(cli.socket);
-    let current = call(client.status())?;
-    let list = |name: Option<&str>| target::list(&current, name).map_err(anyhow::Error::msg);
+    let list = |name: Option<&str>| {
+        target::list(&call(client.status())?, name).map_err(anyhow::Error::msg)
+    };
     let status = match cli.command.unwrap_or(Cmd::Status) {
-        Cmd::Status => return print(&current),
+        Cmd::Status => call(client.status())?,
         Cmd::List(ListCmd::Create { name }) => call(client.create_list(&name))?,
         Cmd::List(ListCmd::Rename { list: from, name }) => {
             call(client.rename_list(list(Some(&from))?, &name))?
@@ -141,7 +142,8 @@ fn run(cli: Cli) -> Result<()> {
             let duration = duration::parse(&duration).map_err(anyhow::Error::msg)?;
             let duration =
                 BlockDuration::from_secs(duration.as_secs()).map_err(anyhow::Error::msg)?;
-            let lists = target::lists(&current, &lists).map_err(anyhow::Error::msg)?;
+            let lists =
+                target::lists(&call(client.status())?, &lists).map_err(anyhow::Error::msg)?;
             call(client.start_block(&lists, duration))?
         }
         Cmd::Potion => call(client.drink_potion())?,
