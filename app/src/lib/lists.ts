@@ -11,16 +11,16 @@ const SKIPPED_KEY = "orcblock.skipped-lists";
  * The daemon always reports at least one list.
  */
 export function currentList(lists: List[], remembered: number | null): List {
-  // The daemon refuses to delete the last list, so `lists[0]` exists.
   return lists.find((list) => list.id === remembered) ?? lists[0]!;
 }
 
 /**
  * The lists the next block covers. The app remembers the lists left out
  * rather than the ones chosen, so a new list is in the next block until
- * unticked.
+ * unticked. A single list is always chosen: it has no tick to undo a skip.
  */
 export function chosenLists(lists: List[], skipped: ReadonlySet<number>): List[] {
+  if (lists.length === 1) return lists;
   return lists.filter((list) => !skipped.has(list.id));
 }
 
@@ -34,7 +34,7 @@ export function targetCount(lists: List[]): number {
 /** The Start button's label: which lists a block would cover. */
 export function armLabel(lists: List[], chosen: List[]): string {
   if (lists.length === 1) return "ARM // START BLOCK";
-  if (chosen.length === 0) return "ARM // TICK A LIST";
+  if (targetCount(chosen) === 0) return "ARM // TICK A LIST WITH TARGETS";
   if (chosen.length === lists.length) return "ARM // ALL LISTS";
   return `ARM // ${chosen.map((list) => list.name).join(" + ")}`;
 }

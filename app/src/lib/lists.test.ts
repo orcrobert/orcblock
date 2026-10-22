@@ -36,6 +36,10 @@ describe("chosenLists", () => {
     expect(chosenLists(all, new Set([2]))).toEqual([mine, empty]);
     expect(chosenLists(all, new Set([9]))).toEqual(all);
   });
+
+  it("always chooses a single list", () => {
+    expect(chosenLists([mine], new Set([1]))).toEqual([mine]);
+  });
 });
 
 describe("targetCount", () => {
@@ -50,7 +54,8 @@ describe("armLabel", () => {
     ["one list", [mine], [mine], "ARM // START BLOCK"],
     ["all lists", all, all, "ARM // ALL LISTS"],
     ["some lists", all, [mine, work], "ARM // My list + Work"],
-    ["none", all, [], "ARM // TICK A LIST"],
+    ["none", all, [], "ARM // TICK A LIST WITH TARGETS"],
+    ["only empty ones", all, [empty], "ARM // TICK A LIST WITH TARGETS"],
   ])("%s", (_case, lists, chosen, want) => {
     expect(armLabel(lists, chosen)).toBe(want);
   });
