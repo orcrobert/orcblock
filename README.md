@@ -1,6 +1,6 @@
 # <img src="app/src-tauri/icons/128x128@2x.png" alt="" width="48" height="48" align="center"> OrcBlock
 
-A distraction blocker for macOS that you can't talk your way out of. It blocks websites and apps. Pick the sites and apps, pick a duration and an orc stands guard until the time is up. Closing OrcBlock, quitting it or rebooting does not end the block. The only way out early is a sleep potion, and you get five a month.
+A distraction blocker for macOS that you can't talk your way out of. It blocks websites and apps. Put the sites and apps in named lists, pick the lists and a duration, and an orc stands guard until the time is up. Closing OrcBlock, quitting it or rebooting does not end the block. The only way out early is a sleep potion, and you get five a month.
 
 ## How it works
 
@@ -27,7 +27,8 @@ Open the app. On first launch it asks for your password once to install the help
 ```sh
 orcblock add https://www.youtube.com/watch?v=1   # stored as youtube.com
 orcblock add-app com.tinyspeck.slackmacgap --name Slack
-orcblock start 1h30m
+orcblock list create Evenings                    # then --list Evenings on add and remove
+orcblock start 1h30m                             # every list; --list picks some
 orcblock status
 orcblock potion                                  # ends the block, uses one of five
 ```

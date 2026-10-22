@@ -15,7 +15,7 @@
 
 | Crate | Kind | Responsibility |
 | --- | --- | --- |
-| `orcblock-core` | lib | The domain. `Domain` (parse and clean user input), `Blocklist`, `BundleId` and `AppList`, `Session`, `PotionLedger`, `State` and its commands. Pure and synchronous: no I/O, no clock, no async. |
+| `orcblock-core` | lib | The domain. `Domain` (parse and clean user input), `Blocklist`, `BundleId` and `AppList`, named `TargetList`s, `Session`, `PotionLedger`, `State` and its commands. Pure and synchronous: no I/O, no clock, no async. |
 | `orcblock-ipc` | lib | The wire protocol: versioned `Request`/`Response` as newline-delimited JSON, `Status` snapshot, and a blocking `Client`. |
 | `orcblockd` | lib + bin | The daemon: socket server, state store, tick loop, enforcement layers, DNS sinkhole, app guard, install and uninstall. |
 | `orcblock-cli` | bin | `orcblock`: status, add, remove, start, potion from the terminal. |
@@ -28,9 +28,10 @@ Dependencies point one way: `core ← ipc ← {daemon, cli, app}`. Core knows no
 
 - **Blocklist**: an ordered set of `Domain`s with the time each was added. A `Domain` is lowercase ASCII (punycode for IDNs), no scheme, port, path, trailing dot or leading `www.`; adding `m.youtube.com` when `youtube.com` is listed is a no-op because the resolver file for `youtube.com` already covers subdomains.
 - **App list**: an `AppList` of `BundleId`s (lowercase reverse-DNS, validated) with a display name and the time each was added. The Finder, the Dock, the login window, the menu bar, Control Centre, Notification Centre and OrcBlock itself (`com.orcrobert*`) can never be added or blocked.
-- **Session**: the domains and apps frozen at start (plus any added during the block), the chosen duration, `remaining`, and when it started. It ends when `remaining` reaches zero or a potion is spent. Sites and apps cannot be removed from a running session; adding is always allowed (it only makes the block stricter).
+- **Lists**: up to 32 `TargetList`s, each a `ListId` (assigned by the state, never reused), a `ListName` (1-40 characters, unique ignoring case) and its own blocklist and app list. There is always at least one. The same site or app may sit on several lists.
+- **Session**: the lists it was started over, the union of their domains (a subdomain another list's parent covers is dropped) and apps frozen at start (plus any added to those lists during the block), the chosen duration, `remaining`, and when it started. It ends when `remaining` reaches zero or a potion is spent. Lists in the session cannot lose sites or apps or be deleted; adding to them is always allowed (it only makes the block stricter). Other lists stay editable and never change what the session enforces.
 - **Potion ledger**: `POTIONS_PER_MONTH = 5`, the month the count belongs to, and how many were used. A new calendar month resets the count; a month earlier than the stored one is treated as the stored month.
-- **State**: blocklist + optional session + ledger. Commands (`add`, `remove`, `start`, `drink_potion`, `advance`) validate fully before mutating and return typed `CommandError`s that the UI shows verbatim.
+- **State**: lists + optional session + ledger. A `state.json` from before lists (`blocklist` and `apps` at the top level) loads into one list named "My list", and a running session keeps its sites, apps and time. Commands (`create_list`, `rename_list`, `delete_list`, `add_site`, `remove_site`, `add_app`, `remove_app`, `start_block`, `drink_potion`, `advance`) validate fully before mutating and return typed `CommandError`s that the UI shows verbatim.
 
 ## Time
 
@@ -46,7 +47,7 @@ See ADR 0006. While a block holds apps, `AppGuard` lists processes every second 
 
 ## Wire protocol (orcblock-ipc)
 
-One JSON object per line in each direction (`{"v":1,"cmd":"add_site","site":"youtube.com"}`, answered by `{"result":"ok","status":{...}}` or `{"result":"error","kind":...,"message":...}`), one request per connection or many in sequence. Every request carries `"v": PROTOCOL_VERSION`; the daemon answers a newer or older major version with `Response::Error { kind: "version", .. }` so the app can ask the user to update the helper. Requests: `status`, `add_site`, `remove_site`, `add_app`, `remove_app`, `start_block`, `drink_potion`. `PROTOCOL_VERSION` is 2 since apps were added. Every successful response carries a full `Status` (blocklist, session with `remaining_secs` and `ends_at`, potions left, daemon version), so clients never need a second round trip.
+One JSON object per line in each direction (`{"v":3,"cmd":"add_site","list":1,"site":"youtube.com"}`, answered by `{"result":"ok","status":{...}}` or `{"result":"error","kind":...,"message":...}`), one request per connection or many in sequence. Every request carries `"v": PROTOCOL_VERSION`; the daemon answers a newer or older major version with `Response::Error { kind: "version", .. }` so the app can ask the user to update the helper. Requests: `status`, `create_list`, `rename_list`, `delete_list`, `add_site`, `remove_site`, `add_app`, `remove_app` (each naming its `list`), `start_block` (with the `lists` to block), `drink_potion`. `PROTOCOL_VERSION` is 3 since lists were added (2 brought apps). Every successful response carries a full `Status` (the lists, session with `remaining_secs` and `ends_at`, potions left, daemon version), so clients never need a second round trip.
 
 ## App (app/)
 
