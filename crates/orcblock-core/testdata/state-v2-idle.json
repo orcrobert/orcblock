@@ -1,0 +1,17 @@
+{
+  "blocklist": [
+    {
+      "domain": "reddit.com",
+      "added_at": "2026-10-01T09:00:00Z"
+    }
+  ],
+  "apps": [],
+  "session": null,
+  "potions": {
+    "month": {
+      "year": 2026,
+      "month": 10
+    },
+    "used": 0
+  }
+}

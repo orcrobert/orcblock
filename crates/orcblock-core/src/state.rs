@@ -2,11 +2,11 @@ use std::collections::BTreeSet;
 use std::time::Duration;
 
 use jiff::Timestamp;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::{
-    AppEntry, AppList, AppName, BlockDuration, Blocklist, BundleId, Domain, ListId, ListName,
-    Month, PotionLedger, Session, TargetList,
+    AppEntry, AppList, AppName, BlockDuration, Blocklist, BundleId, Domain, Entry, ListId,
+    ListName, Month, PotionLedger, Session, TargetList,
 };
 
 /// The most lists a state holds.
@@ -18,10 +18,11 @@ pub const MAX_LISTS: usize = 32;
 /// Every command validates fully before it mutates, so a rejected command
 /// leaves the state exactly as it was.
 ///
-/// Invariants: at least one list, at most [`MAX_LISTS`], unique IDs, all
-/// below `next_list_id`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "StoredState")]
+/// Invariants: at least one list, unique IDs, all below `next_list_id`.
+/// Commands keep at most [`MAX_LISTS`] lists with distinct names; a loaded
+/// state file is repaired rather than refused, so it may hold more.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(from = "StoredState")]
 pub struct State {
     lists: Vec<TargetList>,
     next_list_id: u32,
@@ -197,7 +198,7 @@ impl State {
         }
         self.check_name_free(&name, None)?;
         let id = ListId::new(self.next_list_id);
-        self.next_list_id += 1;
+        self.next_list_id = id.get().checked_add(1).ok_or(CommandError::TooManyLists)?;
         self.lists.push(TargetList {
             id,
             name,
@@ -318,8 +319,9 @@ impl State {
         if self.is_blocking() {
             return Err(CommandError::AlreadyBlocking);
         }
-        let mut chosen = Vec::with_capacity(lists.len());
-        for &id in lists {
+        let ids: BTreeSet<ListId> = lists.iter().copied().collect();
+        let mut chosen = Vec::with_capacity(ids.len());
+        for &id in &ids {
             chosen.push(self.list(id).ok_or(CommandError::ListNotFound(id))?);
         }
         let domains: BTreeSet<Domain> = chosen
@@ -329,12 +331,14 @@ impl State {
             .collect();
         // Each list is free of covered subdomains, but two lists together
         // may hold youtube.com and m.youtube.com.
+        let names: BTreeSet<&str> = domains.iter().map(Domain::as_ascii).collect();
         let domains: BTreeSet<Domain> = domains
             .iter()
             .filter(|domain| {
-                !domains
-                    .iter()
-                    .any(|other| other != *domain && other.covers(domain))
+                !domain
+                    .as_ascii()
+                    .match_indices('.')
+                    .any(|(dot, _)| names.contains(&domain.as_ascii()[dot + 1..]))
             })
             .cloned()
             .collect();
@@ -346,7 +350,6 @@ impl State {
         if domains.is_empty() && apps.is_empty() {
             return Err(CommandError::EmptyBlocklist);
         }
-        let ids = chosen.iter().map(|list| list.id).collect();
         Ok(self
             .session
             .insert(Session::new(ids, domains, apps, duration, now)))
@@ -422,32 +425,86 @@ struct StoredState {
     potions: PotionLedger,
 }
 
-impl TryFrom<StoredState> for State {
-    type Error = String;
+/// What `State` writes. `blocklist` and `apps` repeat the first list for
+/// helpers from before lists, which require `blocklist` and ignore unknown
+/// fields: installing one over this file must keep the running block.
+#[derive(Serialize)]
+struct SavedState<'a> {
+    lists: &'a [TargetList],
+    next_list_id: u32,
+    blocklist: &'a [Entry],
+    apps: &'a [AppEntry],
+    session: &'a Option<Session>,
+    potions: &'a PotionLedger,
+}
 
-    /// Refuses only what cannot be repaired without guessing: duplicate list
-    /// IDs. Everything else loads, because a state file that fails to load
-    /// is set aside and its running block lost.
-    fn try_from(stored: StoredState) -> Result<Self, Self::Error> {
+impl Serialize for State {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let first = self.lists.first();
+        SavedState {
+            lists: &self.lists,
+            next_list_id: self.next_list_id,
+            blocklist: first.map_or(&[], |list| list.sites.entries()),
+            apps: first.map_or(&[], |list| list.apps.entries()),
+            session: &self.session,
+            potions: &self.potions,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl From<StoredState> for State {
+    /// Repairs instead of refusing, because a state file that fails to load
+    /// is set aside and its running block lost. When `lists` is present the
+    /// top-level `blocklist` and `apps` are only the copy for old helpers.
+    fn from(stored: StoredState) -> Self {
         if stored.lists.is_empty() {
-            return Ok(Self::with_first_list(
+            return Self::with_first_list(
                 stored.blocklist,
                 stored.apps,
                 stored.session,
                 stored.potions,
-            ));
+            );
         }
-        let ids: BTreeSet<ListId> = stored.lists.iter().map(TargetList::id).collect();
-        if ids.len() != stored.lists.len() {
-            return Err("state lists the same list id twice".to_owned());
+        let mut lists = stored.lists;
+        let mut session = stored.session;
+        let mut seen = BTreeSet::new();
+        let mut next = lists
+            .iter()
+            .map(|list| list.id.get())
+            .max()
+            .map_or(1, |highest| highest.saturating_add(1))
+            .max(stored.next_list_id);
+        for list in &mut lists {
+            if seen.insert(list.id) {
+                continue;
+            }
+            // A second list with a taken ID gets a fresh one. If the block
+            // holds the taken ID, it holds the copy too: it might be the
+            // list that was meant.
+            let fresh = ListId::new(next);
+            next = next.saturating_add(1);
+            if let Some(session) = &mut session
+                && session.includes(list.id)
+            {
+                session.lists.insert(fresh);
+            }
+            list.id = fresh;
+            seen.insert(fresh);
         }
-        let highest = ids.last().map_or(0, |id| id.get());
-        Ok(Self {
-            lists: stored.lists,
-            next_list_id: stored.next_list_id.max(highest.saturating_add(1)),
-            session: stored.session,
+        // A session without lists names none of them, so every list is
+        // locked rather than none.
+        if let Some(session) = &mut session
+            && session.lists.is_empty()
+        {
+            session.lists = seen;
+        }
+        Self {
+            lists,
+            next_list_id: next,
+            session,
             potions: stored.potions,
-        })
+        }
     }
 }
 

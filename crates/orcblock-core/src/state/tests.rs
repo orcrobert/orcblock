@@ -613,13 +613,126 @@ fn stored_lists_keep_ids_ahead_of_every_list() {
     let mut state: State = serde_json::from_str(json).expect("parses");
     let next = state.create_list(list_name("Next")).expect("creates");
     assert_eq!(next, ListId::new(8));
+}
 
-    let twice = r#"{
-        "lists": [{"id": 1, "name": "A"}, {"id": 1, "name": "B"}],
+#[test]
+fn idle_state_files_from_before_lists_load_into_one_list() {
+    let json = include_str!("../../testdata/state-v2-idle.json");
+    let state: State = serde_json::from_str(json).expect("0.2.0 state loads");
+    assert_eq!(state.lists().len(), 1);
+    assert!(first(&state).sites().contains(&d("reddit.com")));
+    assert!(!state.is_blocking());
+    assert!(state.blocked_domains().is_empty());
+}
+
+#[test]
+fn duplicate_list_ids_are_renumbered_and_stay_locked() {
+    let json = r#"{
+        "lists": [
+            {"id": 1, "name": "A", "sites": [{"domain": "a.com", "added_at": "2026-10-01T09:00:00Z"}]},
+            {"id": 1, "name": "B", "sites": [{"domain": "b.com", "added_at": "2026-10-01T09:00:00Z"}]},
+            {"id": 2, "name": "C"}
+        ],
+        "session": {"lists": [1], "domains": ["a.com"], "started_at": "2026-10-21T10:00:00Z",
+                    "duration": 3600, "remaining": 1200},
+        "potions": {"month": {"year": 2026, "month": 10}, "used": 0}
+    }"#;
+    let mut state: State = serde_json::from_str(json).expect("repaired, not refused");
+    let ids: Vec<u32> = state.lists().iter().map(|list| list.id().get()).collect();
+    assert_eq!(ids, [1, 3, 2]);
+    let session = state.session().expect("the block survives");
+    assert_eq!(session.lists(), &BTreeSet::from([FIRST, ListId::new(3)]));
+    assert_eq!(
+        state.remove_site(ListId::new(3), &d("b.com")),
+        Err(CommandError::Locked(d("b.com")))
+    );
+    let next = state.create_list(list_name("D")).expect("creates");
+    assert_eq!(next, ListId::new(4));
+}
+
+#[test]
+fn a_saved_session_without_lists_locks_every_list() {
+    let json = r#"{
+        "lists": [
+            {"id": 1, "name": "A", "sites": [{"domain": "a.com", "added_at": "2026-10-01T09:00:00Z"}]},
+            {"id": 5, "name": "B", "sites": [{"domain": "b.com", "added_at": "2026-10-01T09:00:00Z"}]}
+        ],
+        "session": {"domains": ["a.com"], "started_at": "2026-10-21T10:00:00Z",
+                    "duration": 3600, "remaining": 1200},
+        "potions": {"month": {"year": 2026, "month": 10}, "used": 0}
+    }"#;
+    let mut state: State = serde_json::from_str(json).expect("loads");
+    assert_eq!(
+        state.session().map(Session::lists),
+        Some(&BTreeSet::from([FIRST, ListId::new(5)]))
+    );
+    assert_eq!(
+        state.delete_list(ListId::new(5)),
+        Err(CommandError::ListLocked(list_name("B")))
+    );
+}
+
+#[test]
+fn list_ids_never_wrap() {
+    let json = r#"{
+        "lists": [{"id": 4294967295, "name": "Last"}],
         "session": null,
         "potions": {"month": {"year": 2026, "month": 10}, "used": 0}
     }"#;
-    assert!(serde_json::from_str::<State>(twice).is_err());
+    let mut state: State = serde_json::from_str(json).expect("loads");
+    assert_eq!(
+        state.create_list(list_name("Next")),
+        Err(CommandError::TooManyLists)
+    );
+    assert_eq!(state.lists().len(), 1);
+}
+
+/// `State` as helpers from before lists read it.
+#[derive(Deserialize)]
+struct OldState {
+    blocklist: Blocklist,
+    #[serde(default)]
+    apps: AppList,
+    session: Option<OldSession>,
+    #[allow(dead_code, reason = "only has to parse")]
+    potions: PotionLedger,
+}
+
+#[derive(Deserialize)]
+struct OldSession {
+    domains: BTreeSet<Domain>,
+    #[serde(default)]
+    apps: BTreeSet<BundleId>,
+    #[allow(dead_code, reason = "only has to parse")]
+    started_at: Timestamp,
+    #[allow(dead_code, reason = "only has to parse")]
+    duration: BlockDuration,
+    remaining: u64,
+}
+
+#[test]
+fn helpers_from_before_lists_keep_the_block_of_a_saved_state() {
+    let mut state = listed(&["youtube.com"]);
+    let work = state.create_list(list_name("Work")).expect("creates");
+    state.add_site(work, d("reddit.com"), NOW).expect("adds");
+    state
+        .add_app(work, id("com.hnc.discord"), name("Discord"), NOW)
+        .expect("adds");
+    state
+        .start_block(&[work], minutes(30), NOW)
+        .expect("starts");
+
+    let json = serde_json::to_string(&state).expect("saves");
+    let old: OldState = serde_json::from_str(&json).expect("an old helper loads it");
+    let session = old.session.expect("the block survives a downgrade");
+    assert_eq!(session.domains, BTreeSet::from([d("reddit.com")]));
+    assert_eq!(session.apps, BTreeSet::from([id("com.hnc.discord")]));
+    assert_eq!(session.remaining, 30 * 60);
+    assert!(old.blocklist.contains(&d("youtube.com")));
+    assert!(old.apps.is_empty());
+
+    let again: State = serde_json::from_str(&json).expect("loads back");
+    assert_eq!(again, state);
 }
 
 #[test]
