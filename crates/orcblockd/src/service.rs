@@ -132,10 +132,28 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
         let now = self.clock.now();
         match command {
             Command::Status => self.ok(),
-            Command::CreateList { name } => match ListName::parse(&name) {
-                Ok(name) => self.change(|state| state.create_list(name).map(drop)),
-                Err(err) => refusal(ErrorKind::InvalidList, &err),
-            },
+            Command::CreateList { name, sites, apps } => {
+                let name = match ListName::parse(&name) {
+                    Ok(name) => name,
+                    Err(err) => return refusal(ErrorKind::InvalidList, &err),
+                };
+                let sites = match sites.iter().map(|site| Domain::parse(site)).collect() {
+                    Ok(sites) => sites,
+                    Err(err) => return refusal(ErrorKind::InvalidSite, &err),
+                };
+                let apps: Result<Vec<_>, _> = apps
+                    .iter()
+                    .map(|app| {
+                        BundleId::parse(&app.bundle_id)
+                            .and_then(|id| Ok((id, AppName::parse(&app.name)?)))
+                    })
+                    .collect();
+                let apps = match apps {
+                    Ok(apps) => apps,
+                    Err(err) => return refusal(ErrorKind::InvalidApp, &err),
+                };
+                self.change(|state| state.create_list_with(name, sites, apps, now).map(drop))
+            }
             Command::RenameList { list, name } => match ListName::parse(&name) {
                 Ok(name) => self.change(|state| state.rename_list(list, name)),
                 Err(err) => refusal(ErrorKind::InvalidList, &err),

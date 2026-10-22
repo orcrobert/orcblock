@@ -6,7 +6,7 @@ use std::time::Duration;
 use orcblock_core::{BlockDuration, ListId};
 
 use crate::codec::{self, CodecError};
-use crate::{Command, ErrorKind, Request, Response, Status};
+use crate::{Command, ErrorKind, NewApp, Request, Response, Status};
 
 /// Where the installed daemon listens.
 pub const DEFAULT_SOCKET: &str = "/var/run/orcblockd.sock";
@@ -81,8 +81,21 @@ impl Client {
 
     /// Creates an empty list named `name`.
     pub fn create_list(&self, name: &str) -> Result<Status, ClientError> {
+        self.create_list_with(name, &[], &[])
+    }
+
+    /// Creates a list named `name` holding `sites` and `apps`, or nothing
+    /// if the daemon refuses any of them.
+    pub fn create_list_with(
+        &self,
+        name: &str,
+        sites: &[String],
+        apps: &[NewApp],
+    ) -> Result<Status, ClientError> {
         self.send(Command::CreateList {
             name: name.to_owned(),
+            sites: sites.to_vec(),
+            apps: apps.to_vec(),
         })
     }
 

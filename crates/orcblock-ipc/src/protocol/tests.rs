@@ -20,8 +20,23 @@ fn requests_have_a_stable_wire_format() {
         (
             Command::CreateList {
                 name: "Deep work".into(),
+                sites: vec![],
+                apps: vec![],
             },
             json!({"v": 3, "cmd": "create_list", "name": "Deep work"}),
+        ),
+        (
+            Command::CreateList {
+                name: "Social".into(),
+                sites: vec!["youtube.com".into()],
+                apps: vec![NewApp {
+                    bundle_id: "com.hnc.discord".into(),
+                    name: "Discord".into(),
+                }],
+            },
+            json!({"v": 3, "cmd": "create_list", "name": "Social",
+                   "sites": ["youtube.com"],
+                   "apps": [{"bundle_id": "com.hnc.discord", "name": "Discord"}]}),
         ),
         (
             Command::RenameList {

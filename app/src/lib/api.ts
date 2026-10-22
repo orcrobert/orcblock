@@ -83,7 +83,8 @@ export type StatusEvent = { type: "ok"; status: Status } | { type: "err"; error:
 
 export const api = {
   status: () => invoke<Status>("status"),
-  createList: (name: string) => invoke<Status>("create_list", { name }),
+  createList: (name: string, sites: string[] = []) =>
+    invoke<Status>("create_list", { name, sites }),
   renameList: (list: number, name: string) => invoke<Status>("rename_list", { list, name }),
   deleteList: (list: number) => invoke<Status>("delete_list", { list }),
   addSite: (list: number, site: string) => invoke<Status>("add_site", { list, site }),

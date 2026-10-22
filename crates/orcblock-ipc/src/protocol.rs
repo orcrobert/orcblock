@@ -39,10 +39,17 @@ impl Request {
 pub enum Command {
     /// Report the current state.
     Status,
-    /// Create an empty list.
+    /// Create a list, empty or holding the given sites and apps. Nothing is
+    /// created if any of them is refused.
     CreateList {
         /// The list's name, validated by the daemon.
         name: String,
+        /// Sites to start with, validated like `add_site`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        sites: Vec<String>,
+        /// Apps to start with, validated like `add_app`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        apps: Vec<NewApp>,
     },
     /// Rename a list.
     RenameList {
@@ -217,6 +224,15 @@ pub struct Status {
     /// The most recent launches of blocked apps that the daemon closed,
     /// oldest first. Kept in memory only, so it is empty after a restart.
     pub blocked_launches: Vec<BlockedLaunch>,
+}
+
+/// An app to put on a new list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewApp {
+    /// The app's bundle ID, validated by the daemon.
+    pub bundle_id: String,
+    /// The name to show, validated by the daemon.
+    pub name: String,
 }
 
 /// A named list of sites and apps.

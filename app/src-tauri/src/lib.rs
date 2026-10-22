@@ -118,8 +118,16 @@ async fn status(state: Shared<'_>) -> Result<Status, AppError> {
 }
 
 #[tauri::command]
-async fn create_list(state: Shared<'_>, name: String) -> Result<Status, AppError> {
-    call(&state, move |client| client.create_list(&name)).await
+async fn create_list(
+    state: Shared<'_>,
+    name: String,
+    sites: Option<Vec<String>>,
+) -> Result<Status, AppError> {
+    let sites = sites.unwrap_or_default();
+    call(&state, move |client| {
+        client.create_list_with(&name, &sites, &[])
+    })
+    .await
 }
 
 #[tauri::command]
