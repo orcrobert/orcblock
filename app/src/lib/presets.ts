@@ -9,6 +9,7 @@ export interface Preset {
   sites: readonly string[];
   /** Shown under the list name as "BASED ON …". */
   credit: string;
+  /** The source itself, cited in the README and shown on hover. */
   url: string;
   /** When the sites were last checked against the source. */
   checked: string;
