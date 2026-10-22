@@ -7,6 +7,9 @@ use sha2::{Digest as _, Sha256};
 // from the webview unless capabilities/default.json grants it.
 const COMMANDS: &[&str] = &[
     "status",
+    "create_list",
+    "rename_list",
+    "delete_list",
     "add_site",
     "remove_site",
     "start_block",

@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
-use orcblock_ipc::{Mode, Status};
+use orcblock_ipc::{List, Mode, Status};
 
 /// The status as a few lines of text.
 pub(crate) fn status(status: &Status, tz: &TimeZone) -> String {
@@ -27,21 +27,32 @@ pub(crate) fn status(status: &Status, tz: &TimeZone) -> String {
         }
     }
 
-    if status.sites.is_empty() && status.apps.is_empty() {
-        let _ = writeln!(
-            out,
-            "Nothing listed yet; add a site with `orcblock add youtube.com` or an app with `orcblock add-app <bundle-id>`"
-        );
-    } else if !status.sites.is_empty() {
-        let _ = writeln!(out, "Sites:");
-        for site in &status.sites {
+    let empty = |list: &List| list.sites.is_empty() && list.apps.is_empty();
+    let lists: &[List] = match status.lists.as_slice() {
+        [only] if empty(only) => {
+            let _ = writeln!(
+                out,
+                "Nothing listed yet; add a site with `orcblock add youtube.com` or an app with `orcblock add-app <bundle-id>`"
+            );
+            &[]
+        }
+        lists => lists,
+    };
+    let blocked = status.block.as_ref().map(|block| block.lists.as_slice());
+    for list in lists {
+        let marker = if blocked.is_some_and(|ids| ids.contains(&list.id)) {
+            " (blocked)"
+        } else {
+            ""
+        };
+        let _ = writeln!(out, "{}{marker}:", list.name);
+        if empty(list) {
+            let _ = writeln!(out, "  empty");
+        }
+        for site in &list.sites {
             let _ = writeln!(out, "  {}", site.display);
         }
-    }
-
-    if !status.apps.is_empty() {
-        let _ = writeln!(out, "Apps:");
-        for app in &status.apps {
+        for app in &list.apps {
             let _ = writeln!(out, "  {} ({})", app.name, app.bundle_id);
         }
     }

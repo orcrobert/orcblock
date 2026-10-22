@@ -2,13 +2,15 @@
 
 use std::time::Duration;
 
-use orcblock_core::{BlockDuration, BundleId};
+use orcblock_core::{BlockDuration, BundleId, ListId};
 use orcblock_ipc::{Client, ClientError, ErrorKind, Mode};
 use orcblockd::{
     AppGuard, Blocked, CommandRunner, DryRunEnforcer, DryRunTerminator, EnforceError, Output,
     Service, Store, SystemClock, server,
 };
 use tokio::sync::oneshot;
+
+const FIRST: ListId = ListId::new(1);
 
 /// A process table with nothing in it; tests never list real processes.
 struct NoProcesses;
@@ -48,12 +50,14 @@ async fn serves_clients_over_the_socket() {
     let calls = tokio::task::spawn_blocking(move || {
         let status = client.status().expect("status");
         assert_eq!(status.mode, Mode::DryRun);
-        client.add_site("https://www.YouTube.com/").expect("adds");
         client
-            .add_app("com.hnc.Discord", "Discord")
+            .add_site(FIRST, "https://www.YouTube.com/")
+            .expect("adds");
+        client
+            .add_app(FIRST, "com.hnc.Discord", "Discord")
             .expect("adds app");
         let status = client
-            .start_block(BlockDuration::from_minutes(10).expect("valid"))
+            .start_block(&[FIRST], BlockDuration::from_minutes(10).expect("valid"))
             .expect("starts");
         let block = status.block.expect("blocking");
         assert_eq!(block.remaining_secs, 600);
@@ -61,7 +65,9 @@ async fn serves_clients_over_the_socket() {
             block.apps.iter().map(BundleId::as_str).collect::<Vec<_>>(),
             ["com.hnc.discord"]
         );
-        let err = client.remove_app("com.hnc.discord").expect_err("locked");
+        let err = client
+            .remove_app(FIRST, "com.hnc.discord")
+            .expect_err("locked");
         assert!(
             matches!(
                 err,
@@ -72,7 +78,9 @@ async fn serves_clients_over_the_socket() {
             ),
             "{err:?}"
         );
-        let err = client.remove_site("youtube.com").expect_err("locked");
+        let err = client
+            .remove_site(FIRST, "youtube.com")
+            .expect_err("locked");
         assert!(
             matches!(
                 err,

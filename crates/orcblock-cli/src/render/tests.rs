@@ -1,6 +1,6 @@
 use jiff::civil::date;
-use orcblock_core::{AppName, BundleId, Domain};
-use orcblock_ipc::{App, Block, BlockedLaunch, Potions, Site};
+use orcblock_core::{AppName, BundleId, Domain, ListId, ListName};
+use orcblock_ipc::{App, Block, BlockedLaunch, List, Potions, Site};
 
 use super::*;
 
@@ -8,8 +8,12 @@ fn idle() -> Status {
     Status {
         daemon_version: "0.1.0".into(),
         mode: Mode::Live,
-        sites: vec![],
-        apps: vec![],
+        lists: vec![List {
+            id: ListId::new(1),
+            name: ListName::parse("My list").expect("valid name"),
+            sites: vec![],
+            apps: vec![],
+        }],
         block: None,
         potions: Potions {
             available: 5,
@@ -41,12 +45,13 @@ fn renders_idle_and_blocking() {
     let domain = Domain::parse("bücher.de").expect("valid");
     let mut blocking = idle();
     blocking.mode = Mode::DryRun;
-    blocking.sites = vec![Site {
+    blocking.lists[0].sites = vec![Site {
         display: domain.to_unicode(),
         domain: domain.clone(),
         added_at: Timestamp::UNIX_EPOCH,
     }];
     blocking.block = Some(Block {
+        lists: vec![ListId::new(1)],
         domains: vec![domain],
         apps: vec![],
         started_at: Timestamp::UNIX_EPOCH,
@@ -59,7 +64,7 @@ fn renders_idle_and_blocking() {
         status(&blocking, &TimeZone::UTC),
         "OrcBlock helper 0.1.0 (dry run: nothing is really blocked)\n\
          The orc is guarding: 25 min 0 s left, until Sat 13:00\n\
-         Sites:\n  bücher.de\n\
+         My list (blocked):\n  bücher.de\n\
          Sleep potions: 3 of 5 left (more on 2026-11-01)\n"
     );
 }
@@ -69,7 +74,7 @@ fn renders_apps_and_closed_launches() {
     let slack = BundleId::parse("com.tinyspeck.slackmacgap").expect("valid id");
     let name = AppName::parse("Slack").expect("valid name");
     let mut listed = idle();
-    listed.apps = vec![App {
+    listed.lists[0].apps = vec![App {
         bundle_id: slack.clone(),
         name: name.clone(),
         added_at: Timestamp::UNIX_EPOCH,
@@ -84,8 +89,36 @@ fn renders_apps_and_closed_launches() {
         status(&listed, &TimeZone::UTC),
         "OrcBlock helper 0.1.0\n\
          The orc is asleep: nothing is blocked\n\
-         Apps:\n  Slack (com.tinyspeck.slackmacgap)\n\
+         My list:\n  Slack (com.tinyspeck.slackmacgap)\n\
          Closed by the orc: Slack at 12:41\n\
+         Sleep potions: 5 of 5 left (more on 2026-11-01)\n"
+    );
+}
+
+#[test]
+fn renders_every_list_and_marks_blocked_ones() {
+    let mut two = idle();
+    two.lists.push(List {
+        id: ListId::new(2),
+        name: ListName::parse("Work").expect("valid name"),
+        sites: vec![],
+        apps: vec![],
+    });
+    two.block = Some(Block {
+        lists: vec![ListId::new(2)],
+        domains: vec![],
+        apps: vec![],
+        started_at: Timestamp::UNIX_EPOCH,
+        duration_secs: 3600,
+        remaining_secs: 3600,
+        ends_at: "2026-10-17T13:00:00Z".parse().expect("timestamp"),
+    });
+    assert_eq!(
+        status(&two, &TimeZone::UTC),
+        "OrcBlock helper 0.1.0\n\
+         The orc is guarding: 1 h left, until Sat 13:00\n\
+         My list:\n  empty\n\
+         Work (blocked):\n  empty\n\
          Sleep potions: 5 of 5 left (more on 2026-11-01)\n"
     );
 }

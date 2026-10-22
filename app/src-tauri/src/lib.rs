@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use orcblock_core::{BlockDuration, Domain};
+use orcblock_core::{BlockDuration, Domain, ListId};
 use orcblock_ipc::codec::CodecError;
 use orcblock_ipc::{Client, ClientError, DEFAULT_SOCKET, ErrorKind, Status};
 use serde::Serialize;
@@ -118,22 +118,41 @@ async fn status(state: Shared<'_>) -> Result<Status, AppError> {
 }
 
 #[tauri::command]
-async fn add_site(state: Shared<'_>, site: String) -> Result<Status, AppError> {
-    call(&state, move |client| client.add_site(&site)).await
+async fn create_list(state: Shared<'_>, name: String) -> Result<Status, AppError> {
+    call(&state, move |client| client.create_list(&name)).await
 }
 
 #[tauri::command]
-async fn remove_site(state: Shared<'_>, site: String) -> Result<Status, AppError> {
-    call(&state, move |client| client.remove_site(&site)).await
+async fn rename_list(state: Shared<'_>, list: ListId, name: String) -> Result<Status, AppError> {
+    call(&state, move |client| client.rename_list(list, &name)).await
 }
 
 #[tauri::command]
-async fn start_block(state: Shared<'_>, minutes: u64) -> Result<Status, AppError> {
+async fn delete_list(state: Shared<'_>, list: ListId) -> Result<Status, AppError> {
+    call(&state, move |client| client.delete_list(list)).await
+}
+
+#[tauri::command]
+async fn add_site(state: Shared<'_>, list: ListId, site: String) -> Result<Status, AppError> {
+    call(&state, move |client| client.add_site(list, &site)).await
+}
+
+#[tauri::command]
+async fn remove_site(state: Shared<'_>, list: ListId, site: String) -> Result<Status, AppError> {
+    call(&state, move |client| client.remove_site(list, &site)).await
+}
+
+#[tauri::command]
+async fn start_block(
+    state: Shared<'_>,
+    lists: Vec<ListId>,
+    minutes: u64,
+) -> Result<Status, AppError> {
     let duration = BlockDuration::from_minutes(minutes).map_err(|err| AppError {
         kind: "invalid_duration".into(),
         message: err.to_string(),
     })?;
-    call(&state, move |client| client.start_block(duration)).await
+    call(&state, move |client| client.start_block(&lists, duration)).await
 }
 
 #[tauri::command]
@@ -157,13 +176,25 @@ async fn favicon(state: Shared<'_>, domain: String) -> Result<Option<String>, Ap
 }
 
 #[tauri::command]
-async fn add_app(state: Shared<'_>, bundle_id: String, name: String) -> Result<Status, AppError> {
-    call(&state, move |client| client.add_app(&bundle_id, &name)).await
+async fn add_app(
+    state: Shared<'_>,
+    list: ListId,
+    bundle_id: String,
+    name: String,
+) -> Result<Status, AppError> {
+    call(&state, move |client| {
+        client.add_app(list, &bundle_id, &name)
+    })
+    .await
 }
 
 #[tauri::command]
-async fn remove_app(state: Shared<'_>, bundle_id: String) -> Result<Status, AppError> {
-    call(&state, move |client| client.remove_app(&bundle_id)).await
+async fn remove_app(
+    state: Shared<'_>,
+    list: ListId,
+    bundle_id: String,
+) -> Result<Status, AppError> {
+    call(&state, move |client| client.remove_app(list, &bundle_id)).await
 }
 
 /// Runs `f` on the app finder off the async runtime: it starts programs
@@ -396,6 +427,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             status,
+            create_list,
+            rename_list,
+            delete_list,
             add_site,
             remove_site,
             start_block,

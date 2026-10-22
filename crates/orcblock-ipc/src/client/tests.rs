@@ -3,7 +3,7 @@ use std::os::unix::net::UnixListener;
 use std::thread;
 
 use jiff::Timestamp;
-use orcblock_core::{Month, State};
+use orcblock_core::{ListId, Month, State};
 
 use super::*;
 use crate::Mode;
@@ -43,10 +43,13 @@ fn status() -> Status {
 fn returns_the_status() {
     let (dir, server) = serve_once(Some(Response::Ok { status: status() }));
     let client = Client::new(dir.path().join("d.sock"));
-    assert_eq!(client.add_site("youtube.com").expect("ok"), status());
+    assert_eq!(
+        client.add_site(ListId::new(1), "youtube.com").expect("ok"),
+        status()
+    );
     assert_eq!(
         server.join().expect("server"),
-        "{\"v\":2,\"cmd\":\"add_site\",\"site\":\"youtube.com\"}\n"
+        "{\"v\":3,\"cmd\":\"add_site\",\"list\":1,\"site\":\"youtube.com\"}\n"
     );
 }
 
