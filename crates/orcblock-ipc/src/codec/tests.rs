@@ -96,7 +96,13 @@ fn command() -> impl Strategy<Value = Command> {
         Just(Command::DrinkPotion),
         (list(), ".{0,200}").prop_map(|(list, site)| Command::AddSite { list, site }),
         (list(), ".{0,200}").prop_map(|(list, site)| Command::RemoveSite { list, site }),
-        ".{0,60}".prop_map(|name| Command::CreateList { name }),
+        (".{0,60}", prop::collection::vec(".{0,40}", 0..3)).prop_map(|(name, sites)| {
+            Command::CreateList {
+                name,
+                sites,
+                apps: vec![],
+            }
+        }),
         (list(), ".{0,60}").prop_map(|(list, name)| Command::RenameList { list, name }),
         list().prop_map(|list| Command::DeleteList { list }),
         (any::<u64>(), prop::collection::vec(list(), 0..4))

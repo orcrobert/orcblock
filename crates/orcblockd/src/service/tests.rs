@@ -564,8 +564,16 @@ fn a_sites_only_block_never_lists_processes() {
     assert_eq!(rig.ps_calls(), 0);
 }
 
+fn create_list(name: &str, sites: &[&str]) -> Command {
+    Command::CreateList {
+        name: name.into(),
+        sites: sites.iter().map(|&site| site.into()).collect(),
+        apps: vec![],
+    }
+}
+
 fn create(service: &mut Service<FakeClock, impl Enforcer>, name: &str) -> ListId {
-    let after = status(service.handle(Command::CreateList { name: name.into() }));
+    let after = status(service.handle(create_list(name, &[])));
     let list = after.lists.last().expect("created");
     assert_eq!(list.name.as_str(), name.trim());
     list.id
@@ -582,7 +590,7 @@ fn manages_lists_and_reports_bad_names() {
         ("taken name", "WORK", ErrorKind::AlreadyListed),
     ];
     for (case, name, want) in cases {
-        let (kind, _) = refusal(service.handle(Command::CreateList { name: name.into() }));
+        let (kind, _) = refusal(service.handle(create_list(name, &[])));
         assert_eq!(kind, want, "{case}");
     }
 
@@ -647,4 +655,50 @@ fn a_block_over_an_unknown_list_is_refused() {
     }));
     assert_eq!(kind, ErrorKind::ListNotFound);
     assert!(!rig.blocked.is_active());
+}
+
+#[test]
+fn creates_a_filled_list_or_nothing() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+
+    let after = status(service.handle(create_list("Social", &["youtube.com", "Reddit.com"])));
+    let social = after.lists.last().expect("created");
+    let sites: Vec<&str> = social
+        .sites
+        .iter()
+        .map(|site| site.domain.as_ascii())
+        .collect();
+    assert_eq!(sites, ["youtube.com", "reddit.com"]);
+
+    let cases = [
+        (
+            "bad site",
+            create_list("Video", &["youtube.com", "not a site"]),
+            ErrorKind::InvalidSite,
+        ),
+        (
+            "covered site",
+            create_list("Video", &["youtube.com", "m.youtube.com"]),
+            ErrorKind::AlreadyListed,
+        ),
+        (
+            "bad app",
+            Command::CreateList {
+                name: "Video".into(),
+                sites: vec![],
+                apps: vec![orcblock_ipc::NewApp {
+                    bundle_id: "no spaces".into(),
+                    name: "App".into(),
+                }],
+            },
+            ErrorKind::InvalidApp,
+        ),
+    ];
+    for (case, command, want) in cases {
+        let (kind, _) = refusal(service.handle(command));
+        assert_eq!(kind, want, "{case}");
+        let after = status(service.handle(Command::Status));
+        assert_eq!(after.lists.len(), 2, "{case}: nothing created");
+    }
 }
