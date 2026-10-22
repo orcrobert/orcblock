@@ -12,6 +12,9 @@ use crate::{
 /// The most lists a state holds.
 pub const MAX_LISTS: usize = 32;
 
+/// The most sites and apps a list can be created with at once.
+pub const MAX_NEW_TARGETS: usize = 256;
+
 /// Everything the daemon persists: the lists of sites and apps, the running
 /// block and the potion ledger.
 ///
@@ -78,6 +81,10 @@ pub enum CommandError {
     /// Another list already has this name, ignoring case.
     #[error("There is already a list named {0}")]
     ListNameTaken(ListName),
+    /// A list was to be created with more than [`MAX_NEW_TARGETS`] sites
+    /// and apps.
+    #[error("A new list starts with at most 256 sites and apps")]
+    TooManyTargets,
     /// [`MAX_LISTS`] lists exist already.
     #[error("The orc keeps at most 32 lists")]
     TooManyLists,
@@ -205,6 +212,30 @@ impl State {
             sites: Blocklist::default(),
             apps: AppList::default(),
         });
+        Ok(id)
+    }
+
+    /// Creates a list holding `sites` and `apps` and returns its ID. If any
+    /// of them is refused, nothing is created.
+    pub fn create_list_with(
+        &mut self,
+        name: ListName,
+        sites: Vec<Domain>,
+        apps: Vec<(BundleId, AppName)>,
+        now: Timestamp,
+    ) -> Result<ListId, CommandError> {
+        if sites.len() + apps.len() > MAX_NEW_TARGETS {
+            return Err(CommandError::TooManyTargets);
+        }
+        let mut next = self.clone();
+        let id = next.create_list(name)?;
+        for domain in sites {
+            next.add_site(id, domain, now)?;
+        }
+        for (bundle_id, name) in apps {
+            next.add_app(id, bundle_id, name, now)?;
+        }
+        *self = next;
         Ok(id)
     }
 

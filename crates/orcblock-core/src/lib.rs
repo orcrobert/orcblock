@@ -23,4 +23,4 @@ pub use domain::{Domain, DomainError};
 pub use list::{ListId, ListName, ListNameError, TargetList};
 pub use potion::{Month, MonthError, POTIONS_PER_MONTH, PotionLedger};
 pub use session::{BlockDuration, DurationError, Session};
-pub use state::{CommandError, MAX_LISTS, SessionEnd, State};
+pub use state::{CommandError, MAX_LISTS, MAX_NEW_TARGETS, SessionEnd, State};

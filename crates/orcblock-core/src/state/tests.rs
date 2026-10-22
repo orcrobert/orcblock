@@ -746,3 +746,70 @@ fn list_errors_read_well() {
         "The orc won't move: Social is part of the running block"
     );
 }
+
+#[test]
+fn a_list_created_with_targets_holds_them() {
+    let mut state = listed(&["youtube.com"]);
+    let social = state
+        .create_list_with(
+            list_name("Social"),
+            vec![d("youtube.com"), d("reddit.com")],
+            vec![(id("com.hnc.discord"), name("Discord"))],
+            NOW,
+        )
+        .expect("creates");
+    let list = state.list(social).expect("exists");
+    assert_eq!(
+        list.sites().domains().collect::<Vec<_>>(),
+        [&d("youtube.com"), &d("reddit.com")]
+    );
+    assert!(list.apps().get(&id("com.hnc.discord")).is_some());
+}
+
+#[test]
+fn a_list_created_with_a_refused_target_is_not_created() {
+    let cases = [
+        (
+            "covered site",
+            vec![d("youtube.com"), d("m.youtube.com")],
+            vec![],
+            CommandError::AlreadyListed {
+                domain: d("m.youtube.com"),
+                by: d("youtube.com"),
+            },
+        ),
+        (
+            "app twice",
+            vec![d("reddit.com")],
+            vec![
+                (id("com.hnc.discord"), name("Discord")),
+                (id("com.hnc.discord"), name("Discord")),
+            ],
+            CommandError::AppAlreadyListed(name("Discord")),
+        ),
+        (
+            "too many",
+            (0..=MAX_NEW_TARGETS)
+                .map(|n| d(&format!("site{n}.com")))
+                .collect(),
+            vec![],
+            CommandError::TooManyTargets,
+        ),
+        (
+            "protected app",
+            vec![],
+            vec![(id("com.apple.finder"), name("Finder"))],
+            CommandError::Unblockable(name("Finder")),
+        ),
+    ];
+    for (case, sites, apps, want) in cases {
+        let mut state = listed(&["youtube.com"]);
+        let before = state.clone();
+        assert_eq!(
+            state.create_list_with(list_name("Social"), sites, apps, NOW),
+            Err(want),
+            "{case}"
+        );
+        assert_eq!(state, before, "{case}");
+    }
+}
