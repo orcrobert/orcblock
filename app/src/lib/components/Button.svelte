@@ -4,6 +4,7 @@
   let {
     variant = "solid",
     type = "button",
+    form,
     disabled = false,
     onclick,
     children,
@@ -11,13 +12,15 @@
     /** `solid` is the one main action; `alert` is the potion; `plain` is secondary. */
     variant?: "solid" | "alert" | "plain";
     type?: "button" | "submit";
+    /** The form a submit button sends when it sits outside it. */
+    form?: string;
     disabled?: boolean;
     onclick?: (event: MouseEvent) => void;
     children: Snippet;
   } = $props();
 </script>
 
-<button class={variant} {type} {disabled} {onclick}>{@render children()}</button>
+<button class={variant} {type} {form} {disabled} {onclick}>{@render children()}</button>
 
 <style>
   button {

@@ -34,7 +34,18 @@ export interface InstalledApp {
   path: string;
 }
 
+/** A named list of sites and apps. */
+export interface List {
+  /** Assigned by the daemon and never reused. */
+  id: number;
+  name: string;
+  sites: Site[];
+  apps: App[];
+}
+
 export interface Block {
+  /** The lists the block was started over; additions to them join it. */
+  lists: number[];
   domains: string[];
   apps: string[];
   started_at: string;
@@ -53,8 +64,7 @@ export interface Potions {
 export interface Status {
   daemon_version: string;
   mode: "live" | "dry_run";
-  sites: Site[];
-  apps: App[];
+  lists: List[];
   block: Block | null;
   blocked_launches: BlockedLaunch[];
   potions: Potions;
@@ -73,13 +83,18 @@ export type StatusEvent = { type: "ok"; status: Status } | { type: "err"; error:
 
 export const api = {
   status: () => invoke<Status>("status"),
-  addSite: (site: string) => invoke<Status>("add_site", { site }),
-  removeSite: (site: string) => invoke<Status>("remove_site", { site }),
-  startBlock: (minutes: number) => invoke<Status>("start_block", { minutes }),
+  createList: (name: string) => invoke<Status>("create_list", { name }),
+  renameList: (list: number, name: string) => invoke<Status>("rename_list", { list, name }),
+  deleteList: (list: number) => invoke<Status>("delete_list", { list }),
+  addSite: (list: number, site: string) => invoke<Status>("add_site", { list, site }),
+  removeSite: (list: number, site: string) => invoke<Status>("remove_site", { list, site }),
+  startBlock: (lists: number[], minutes: number) =>
+    invoke<Status>("start_block", { lists, minutes }),
   drinkPotion: () => invoke<Status>("drink_potion"),
   favicon: (domain: string) => invoke<string | null>("favicon", { domain }),
-  addApp: (bundleId: string, name: string) => invoke<Status>("add_app", { bundleId, name }),
-  removeApp: (bundleId: string) => invoke<Status>("remove_app", { bundleId }),
+  addApp: (list: number, bundleId: string, name: string) =>
+    invoke<Status>("add_app", { list, bundleId, name }),
+  removeApp: (list: number, bundleId: string) => invoke<Status>("remove_app", { list, bundleId }),
   installedApps: () => invoke<InstalledApp[]>("installed_apps"),
   runningApps: () => invoke<string[]>("running_apps"),
   appIcon: (bundleId: string) => invoke<string | null>("app_icon", { bundleId }),

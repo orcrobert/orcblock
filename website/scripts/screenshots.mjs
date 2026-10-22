@@ -47,16 +47,24 @@ function sampleStatus() {
   return {
     daemon_version: "0.0.0",
     mode: "live",
-    sites: SITES.map((domain, i) => ({
-      domain,
-      display: domain,
-      added_at: new Date(now.getTime() - (i + 2) * 86_400_000).toISOString(),
-    })),
-    apps: APPS.map((app, i) => ({
-      ...app,
-      added_at: new Date(now.getTime() - (i + 1) * 86_400_000).toISOString(),
-    })),
+    lists: [
+      {
+        id: 1,
+        name: "Distractions",
+        sites: SITES.map((domain, i) => ({
+          domain,
+          display: domain,
+          added_at: new Date(now.getTime() - (i + 2) * 86_400_000).toISOString(),
+        })),
+        apps: APPS.map((app, i) => ({
+          ...app,
+          added_at: new Date(now.getTime() - (i + 1) * 86_400_000).toISOString(),
+        })),
+      },
+      { id: 2, name: "Evenings", sites: [], apps: [] },
+    ],
     block: {
+      lists: [1],
       domains: SITES,
       apps: APPS.map((app) => app.bundle_id),
       started_at: startedAt.toISOString(),

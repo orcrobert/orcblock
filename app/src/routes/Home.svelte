@@ -15,11 +15,22 @@
   import Countdown from "../lib/components/Countdown.svelte";
   import Dialog from "../lib/components/Dialog.svelte";
   import DurationPicker from "../lib/components/DurationPicker.svelte";
+  import ListSwitcher from "../lib/components/ListSwitcher.svelte";
   import OrcBox from "../lib/components/OrcBox.svelte";
   import PotionShelf from "../lib/components/PotionShelf.svelte";
   import SiteRow from "../lib/components/SiteRow.svelte";
   import StatusBar from "../lib/components/StatusBar.svelte";
-  import { DEFAULT_MINUTES, pad2 } from "../lib/format";
+  import { DEFAULT_MINUTES } from "../lib/format";
+  import {
+    armLabel,
+    chosenLists,
+    currentList,
+    loadCurrent,
+    loadSkipped,
+    saveCurrent,
+    saveSkipped,
+    targetCount,
+  } from "../lib/lists";
 
   let {
     status,
@@ -45,10 +56,16 @@
   let orcBox: OrcBox | undefined = $state();
   let control: HTMLElement | undefined = $state();
   let busy = $state(false);
+  let remembered = $state(loadCurrent());
+  let skipped = $state(loadSkipped());
 
   const block = $derived(status.block);
-  const empty = $derived(status.sites.length === 0 && status.apps.length === 0);
-  const listed = $derived(new Set(status.apps.map((app) => app.bundle_id)));
+  const list = $derived(currentList(status.lists, remembered));
+  const chosen = $derived(chosenLists(status.lists, skipped));
+  const blockedLists = $derived(block?.lists ?? []);
+  const locked = $derived(blockedLists.includes(list.id));
+  const empty = $derived(list.sites.length === 0 && list.apps.length === 0);
+  const listed = $derived(new Set(list.apps.map((app) => app.bundle_id)));
 
   async function run(action: () => Promise<Status>): Promise<boolean> {
     busy = true;
@@ -67,7 +84,7 @@
     event.preventDefault();
     if (site.trim() === "") return;
     try {
-      onstatus(await api.addSite(site));
+      onstatus(await api.addSite(list.id, site));
       site = "";
       siteError = "";
     } catch (err) {
@@ -76,16 +93,54 @@
   }
 
   function removeSite(entry: Site) {
-    void run(() => api.removeSite(entry.domain));
+    void run(() => api.removeSite(list.id, entry.domain));
   }
 
   function removeApp(entry: App) {
-    void run(() => api.removeApp(entry.bundle_id));
+    void run(() => api.removeApp(list.id, entry.bundle_id));
+  }
+
+  function selectList(id: number) {
+    remembered = id;
+    saveCurrent(id);
+  }
+
+  function toggleList(id: number) {
+    const next = new Set(skipped);
+    if (!next.delete(id)) next.add(id);
+    skipped = next;
+    saveSkipped(next, status.lists);
+  }
+
+  async function createList(name: string): Promise<string | null> {
+    try {
+      const next = await api.createList(name);
+      onstatus(next);
+      const created = next.lists.at(-1);
+      if (created) selectList(created.id);
+      return null;
+    } catch (err) {
+      return errorMessage(err);
+    }
+  }
+
+  async function renameList(name: string): Promise<string | null> {
+    try {
+      onstatus(await api.renameList(list.id, name));
+      return null;
+    } catch (err) {
+      return errorMessage(err);
+    }
+  }
+
+  async function deleteList() {
+    const id = list.id;
+    await run(() => api.deleteList(id));
   }
 
   async function addApp(app: InstalledApp): Promise<string | null> {
     try {
-      onstatus(await api.addApp(app.bundle_id, app.name));
+      onstatus(await api.addApp(list.id, app.bundle_id, app.name));
       return null;
     } catch (err) {
       return errorMessage(err);
@@ -94,12 +149,15 @@
 
   /** Starts the block, or first lists the listed apps it will close. */
   async function arm() {
-    if (status.apps.length > 0) {
+    const apps = [
+      ...new Map(chosen.flatMap((entry) => entry.apps).map((app) => [app.bundle_id, app])).values(),
+    ];
+    if (apps.length > 0) {
       busy = true;
       // Without the list the block still starts; the warning is a courtesy.
       const open = new Set(await api.runningApps().catch(() => []));
       busy = false;
-      const names = status.apps.filter((app) => open.has(app.bundle_id)).map((app) => app.name);
+      const names = apps.filter((app) => open.has(app.bundle_id)).map((app) => app.name);
       if (names.length > 0) {
         closing = names;
         warning = true;
@@ -112,7 +170,12 @@
   async function start() {
     // Closed first, so an error shows in the snackbar, not under the modal.
     warning = false;
-    await run(() => api.startBlock(minutes));
+    await run(() =>
+      api.startBlock(
+        chosen.map((entry) => entry.id),
+        minutes,
+      ),
+    );
   }
 
   async function dropApps(paths: string[]) {
@@ -201,18 +264,25 @@
           <span>DRINK</span><span>&gt;&gt;&gt;</span>
         </Button>
       {:else}
-        <Button disabled={busy || empty} onclick={arm}>
-          <span>ARM // START BLOCK</span><span>&gt;&gt;&gt;</span>
+        <Button disabled={busy || targetCount(chosen) === 0} onclick={arm}>
+          <span class="label">{armLabel(status.lists, chosen)}</span><span>&gt;&gt;&gt;</span>
         </Button>
       {/if}
     </footer>
   </section>
 
   <section class="targets" class:dragging aria-labelledby="targets-title">
-    <header class="micro">
-      <h2 id="targets-title">[ TARGETS ]</h2>
-      <span class="muted">{pad2(status.sites.length + status.apps.length)}</span>
-    </header>
+    <ListSwitcher
+      lists={status.lists}
+      current={list}
+      {skipped}
+      blocked={blockedLists}
+      onselect={selectList}
+      ontoggle={toggleList}
+      oncreate={createList}
+      onrename={renameList}
+      ondelete={deleteList}
+    />
 
     <form class="prompt" onsubmit={addSite}>
       <span class="micro" aria-hidden="true">&gt;</span>
@@ -241,9 +311,11 @@
       {siteError ||
         (dragging
           ? "DROP TO ADD THE APP"
-          : block
+          : locked
             ? "NEW TARGETS ARE BLOCKED AT ONCE"
-            : "PASTE A LINK, TYPE A NAME OR DROP AN APP")}
+            : block
+              ? "THIS LIST IS NOT IN THE RUNNING BLOCK"
+              : "PASTE A LINK, TYPE A NAME OR DROP AN APP")}
     </p>
 
     <div class="list">
@@ -251,16 +323,11 @@
         <p class="none micro muted">NO TARGETS // ADD A SITE OR AN APP ABOVE</p>
       {:else}
         <ul>
-          {#each status.sites as entry, i (entry.domain)}
-            <SiteRow site={entry} index={i + 1} locked={block !== null} onremove={removeSite} />
+          {#each list.sites as entry, i (entry.domain)}
+            <SiteRow site={entry} index={i + 1} {locked} onremove={removeSite} />
           {/each}
-          {#each status.apps as entry, i (entry.bundle_id)}
-            <AppRow
-              app={entry}
-              index={status.sites.length + i + 1}
-              locked={block !== null}
-              onremove={removeApp}
-            />
+          {#each list.apps as entry, i (entry.bundle_id)}
+            <AppRow app={entry} index={list.sites.length + i + 1} {locked} onremove={removeApp} />
           {/each}
         </ul>
       {/if}
@@ -339,16 +406,11 @@
     grid-template-rows: 28px 40px auto 1fr;
     min-height: 0;
   }
-  .targets header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 var(--gutter);
-    border-bottom: var(--rule-thin) solid var(--rule);
-  }
-  h2 {
-    margin: 0;
-    font: inherit;
+  .action .label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .prompt {
     display: grid;
