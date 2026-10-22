@@ -16,36 +16,60 @@ fn october() -> Month {
 #[test]
 fn requests_have_a_stable_wire_format() {
     let cases = [
-        (Command::Status, json!({"v": 2, "cmd": "status"})),
+        (Command::Status, json!({"v": 3, "cmd": "status"})),
+        (
+            Command::CreateList {
+                name: "Deep work".into(),
+            },
+            json!({"v": 3, "cmd": "create_list", "name": "Deep work"}),
+        ),
+        (
+            Command::RenameList {
+                list: FIRST,
+                name: "Social".into(),
+            },
+            json!({"v": 3, "cmd": "rename_list", "list": 1, "name": "Social"}),
+        ),
+        (
+            Command::DeleteList { list: FIRST },
+            json!({"v": 3, "cmd": "delete_list", "list": 1}),
+        ),
         (
             Command::AddSite {
+                list: FIRST,
                 site: "https://www.youtube.com/watch".into(),
             },
-            json!({"v": 2, "cmd": "add_site", "site": "https://www.youtube.com/watch"}),
+            json!({"v": 3, "cmd": "add_site", "list": 1, "site": "https://www.youtube.com/watch"}),
         ),
         (
             Command::RemoveSite {
+                list: FIRST,
                 site: "youtube.com".into(),
             },
-            json!({"v": 2, "cmd": "remove_site", "site": "youtube.com"}),
+            json!({"v": 3, "cmd": "remove_site", "list": 1, "site": "youtube.com"}),
         ),
         (
-            Command::StartBlock { secs: 1500 },
-            json!({"v": 2, "cmd": "start_block", "secs": 1500}),
+            Command::StartBlock {
+                secs: 1500,
+                lists: vec![FIRST, ListId::new(4)],
+            },
+            json!({"v": 3, "cmd": "start_block", "secs": 1500, "lists": [1, 4]}),
         ),
-        (Command::DrinkPotion, json!({"v": 2, "cmd": "drink_potion"})),
+        (Command::DrinkPotion, json!({"v": 3, "cmd": "drink_potion"})),
         (
             Command::AddApp {
+                list: FIRST,
                 bundle_id: "com.tinyspeck.slackmacgap".into(),
                 name: "Slack".into(),
             },
-            json!({"v": 2, "cmd": "add_app", "bundle_id": "com.tinyspeck.slackmacgap", "name": "Slack"}),
+            json!({"v": 3, "cmd": "add_app", "list": 1, "bundle_id": "com.tinyspeck.slackmacgap", "name": "Slack"}),
         ),
         (
             Command::RemoveApp {
+                list: FIRST,
                 bundle_id: "com.tinyspeck.slackmacgap".into(),
             },
-            json!({"v": 2, "cmd": "remove_app", "bundle_id": "com.tinyspeck.slackmacgap"}),
+            json!({"v": 3, "cmd": "remove_app", "list": 1, "bundle_id": "com.tinyspeck.slackmacgap"}),
         ),
     ];
     for (command, want) in cases {
@@ -82,8 +106,8 @@ fn status_reflects_state() {
         .add_site(FIRST, Domain::parse("bücher.de").expect("valid"), start)
         .expect("adds");
     let idle = Status::new(&state, start, october(), Mode::DryRun, "0.1.0");
-    assert_eq!(idle.sites[0].domain.as_ascii(), "xn--bcher-kva.de");
-    assert_eq!(idle.sites[0].display, "bücher.de");
+    assert_eq!(idle.lists[0].sites[0].domain.as_ascii(), "xn--bcher-kva.de");
+    assert_eq!(idle.lists[0].sites[0].display, "bücher.de");
     assert_eq!(idle.block, None);
     assert_eq!(
         idle.potions,
@@ -140,7 +164,7 @@ fn status_lists_apps_and_their_block() {
         .expect("starts");
     let status = Status::new(&state, start, october(), Mode::Live, "0.1.0");
     assert_eq!(
-        serde_json::to_value(&status.apps).expect("serializes"),
+        serde_json::to_value(&status.lists[0].apps).expect("serializes"),
         json!([{"bundle_id": "com.hnc.discord", "name": "Discord", "added_at": "2027-01-15T08:00:00Z"}])
     );
     let block = status.block.expect("blocking");

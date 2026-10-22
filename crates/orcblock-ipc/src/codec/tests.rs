@@ -1,5 +1,6 @@
 use std::io::Cursor;
 
+use orcblock_core::ListId;
 use proptest::prelude::*;
 
 use super::*;
@@ -8,15 +9,20 @@ use crate::Command;
 #[test]
 fn encode_appends_one_newline() {
     let line = encode(&Request::new(Command::Status)).expect("encodes");
-    assert_eq!(line, b"{\"v\":2,\"cmd\":\"status\"}\n");
+    assert_eq!(line, b"{\"v\":3,\"cmd\":\"status\"}\n");
 }
 
 #[test]
 fn decode_request_checks_the_version_first() {
-    let cases: [(&str, &[u8], ErrorKind); 4] = [
+    let cases: [(&str, &[u8], ErrorKind); 5] = [
         (
             "newer client",
-            br#"{"v":3,"cmd":"teleport"}"#,
+            br#"{"v":4,"cmd":"teleport"}"#,
+            ErrorKind::Version,
+        ),
+        (
+            "client from before lists",
+            br#"{"v":2,"cmd":"add_site","site":"youtube.com"}"#,
             ErrorKind::Version,
         ),
         (
@@ -26,7 +32,7 @@ fn decode_request_checks_the_version_first() {
         ),
         (
             "unknown command",
-            br#"{"v":2,"cmd":"teleport"}"#,
+            br#"{"v":3,"cmd":"teleport"}"#,
             ErrorKind::BadRequest,
         ),
         ("garbage", b"not json", ErrorKind::BadRequest),
@@ -41,7 +47,7 @@ fn decode_request_checks_the_version_first() {
     }
 
     assert_eq!(
-        decode_request(b"{\"v\":2,\"cmd\":\"drink_potion\"}\n"),
+        decode_request(b"{\"v\":3,\"cmd\":\"drink_potion\"}\n"),
         Ok(Request::new(Command::DrinkPotion))
     );
 }
@@ -71,6 +77,7 @@ fn oversized_lines_are_refused() {
     ));
 
     let huge = Command::AddSite {
+        list: ListId::new(1),
         site: "a".repeat(MAX_MESSAGE_LEN),
     };
     assert!(matches!(
@@ -79,13 +86,21 @@ fn oversized_lines_are_refused() {
     ));
 }
 
+fn list() -> impl Strategy<Value = ListId> {
+    any::<u32>().prop_map(ListId::new)
+}
+
 fn command() -> impl Strategy<Value = Command> {
     prop_oneof![
         Just(Command::Status),
         Just(Command::DrinkPotion),
-        ".{0,200}".prop_map(|site| Command::AddSite { site }),
-        ".{0,200}".prop_map(|site| Command::RemoveSite { site }),
-        any::<u64>().prop_map(|secs| Command::StartBlock { secs }),
+        (list(), ".{0,200}").prop_map(|(list, site)| Command::AddSite { list, site }),
+        (list(), ".{0,200}").prop_map(|(list, site)| Command::RemoveSite { list, site }),
+        ".{0,60}".prop_map(|name| Command::CreateList { name }),
+        (list(), ".{0,60}").prop_map(|(list, name)| Command::RenameList { list, name }),
+        list().prop_map(|list| Command::DeleteList { list }),
+        (any::<u64>(), prop::collection::vec(list(), 0..4))
+            .prop_map(|(secs, lists)| Command::StartBlock { secs, lists }),
     ]
 }
 

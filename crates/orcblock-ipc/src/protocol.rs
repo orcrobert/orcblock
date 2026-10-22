@@ -1,10 +1,13 @@
 use jiff::Timestamp;
 use jiff::civil::Date;
-use orcblock_core::{AppName, BundleId, CommandError, Domain, Month, POTIONS_PER_MONTH, State};
+use orcblock_core::{
+    AppName, BundleId, CommandError, Domain, ListId, ListName, Month, POTIONS_PER_MONTH, State,
+    TargetList,
+};
 use serde::{Deserialize, Serialize};
 
 /// The protocol version both sides must agree on.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// The longest line either side accepts, newline included.
 pub const MAX_MESSAGE_LEN: usize = 1024 * 1024;
@@ -36,32 +39,59 @@ impl Request {
 pub enum Command {
     /// Report the current state.
     Status,
-    /// List a site; `site` is what the user typed (a domain or URL).
+    /// Create an empty list.
+    CreateList {
+        /// The list's name, validated by the daemon.
+        name: String,
+    },
+    /// Rename a list.
+    RenameList {
+        /// The list to rename.
+        list: ListId,
+        /// The new name, validated by the daemon.
+        name: String,
+    },
+    /// Delete a list and everything on it.
+    DeleteList {
+        /// The list to delete.
+        list: ListId,
+    },
+    /// Add a site to a list; `site` is what the user typed (a domain or URL).
     AddSite {
+        /// The list to add to.
+        list: ListId,
         /// Raw user input, cleaned and validated by the daemon.
         site: String,
     },
-    /// Unlist a site.
+    /// Remove a site from a list.
     RemoveSite {
+        /// The list to remove from.
+        list: ListId,
         /// The domain as listed, or any input that cleans up to it.
         site: String,
     },
-    /// List an app.
+    /// Add an app to a list.
     AddApp {
+        /// The list to add to.
+        list: ListId,
         /// The app's bundle ID, validated by the daemon.
         bundle_id: String,
         /// The app's display name, validated by the daemon.
         name: String,
     },
-    /// Unlist an app.
+    /// Remove an app from a list.
     RemoveApp {
+        /// The list to remove from.
+        list: ListId,
         /// The app's bundle ID, in any case.
         bundle_id: String,
     },
-    /// Start a block over every listed site and app.
+    /// Start a block over every site and app on the given lists.
     StartBlock {
         /// The block's length in seconds.
         secs: u64,
+        /// The lists to block.
+        lists: Vec<ListId>,
     },
     /// End the running block early with a sleep potion.
     DrinkPotion,
@@ -147,6 +177,8 @@ pub enum ErrorKind {
     InvalidSite,
     /// The input is not a valid bundle ID or app name.
     InvalidApp,
+    /// The input is not a valid list name.
+    InvalidList,
     /// The duration is out of range.
     InvalidDuration,
     /// Client and daemon speak different protocol versions.
@@ -174,10 +206,8 @@ pub struct Status {
     pub daemon_version: String,
     /// Live or dry run.
     pub mode: Mode,
-    /// The list, in the order sites were added.
-    pub sites: Vec<Site>,
-    /// The listed apps, in the order they were added.
-    pub apps: Vec<App>,
+    /// The lists, in the order they were created.
+    pub lists: Vec<List>,
     /// The running block, if any.
     pub block: Option<Block>,
     /// The sleep potions.
@@ -185,6 +215,19 @@ pub struct Status {
     /// The most recent launches of blocked apps that the daemon closed,
     /// oldest first. Kept in memory only, so it is empty after a restart.
     pub blocked_launches: Vec<BlockedLaunch>,
+}
+
+/// A named list of sites and apps.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct List {
+    /// What commands name the list by.
+    pub id: ListId,
+    /// The name people read.
+    pub name: ListName,
+    /// The sites, in the order they were added.
+    pub sites: Vec<Site>,
+    /// The apps, in the order they were added.
+    pub apps: Vec<App>,
 }
 
 /// A listed app.
@@ -226,6 +269,8 @@ pub struct Site {
 /// A running block.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Block {
+    /// The lists the block was started over; additions to them join it.
+    pub lists: Vec<ListId>,
     /// The domains enforced.
     pub domains: Vec<Domain>,
     /// The apps closed while it runs.
@@ -262,27 +307,9 @@ impl Status {
         mode: Mode,
         daemon_version: &str,
     ) -> Self {
-        let sites = state
-            .lists()
-            .iter()
-            .flat_map(|list| list.sites().entries())
-            .map(|entry| Site {
-                display: entry.domain.to_unicode(),
-                domain: entry.domain.clone(),
-                added_at: entry.added_at,
-            })
-            .collect();
-        let apps = state
-            .lists()
-            .iter()
-            .flat_map(|list| list.apps().entries())
-            .map(|entry| App {
-                bundle_id: entry.bundle_id.clone(),
-                name: entry.name.clone(),
-                added_at: entry.added_at,
-            })
-            .collect();
+        let lists = state.lists().iter().map(List::new).collect();
         let block = state.session().map(|session| Block {
+            lists: session.lists().iter().copied().collect(),
             domains: session.domains().iter().cloned().collect(),
             apps: session.apps().iter().cloned().collect(),
             started_at: session.started_at(),
@@ -300,11 +327,39 @@ impl Status {
         Self {
             daemon_version: daemon_version.to_owned(),
             mode,
-            sites,
-            apps,
+            lists,
             block,
             potions,
             blocked_launches: Vec::new(),
+        }
+    }
+}
+
+impl List {
+    fn new(list: &TargetList) -> Self {
+        Self {
+            id: list.id(),
+            name: list.name().clone(),
+            sites: list
+                .sites()
+                .entries()
+                .iter()
+                .map(|entry| Site {
+                    display: entry.domain.to_unicode(),
+                    domain: entry.domain.clone(),
+                    added_at: entry.added_at,
+                })
+                .collect(),
+            apps: list
+                .apps()
+                .entries()
+                .iter()
+                .map(|entry| App {
+                    bundle_id: entry.bundle_id.clone(),
+                    name: entry.name.clone(),
+                    added_at: entry.added_at,
+                })
+                .collect(),
         }
     }
 }

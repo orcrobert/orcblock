@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use orcblock_core::Month;
+use orcblock_core::{ListId, Month};
 
 use super::*;
 use crate::DryRunEnforcer;
@@ -11,6 +11,8 @@ use crate::apps::fake::{FakePlists, FakeTerminator};
 use crate::clock::fake::FakeClock;
 use crate::enforce::runner::fake::FakeRunner;
 use crate::enforce::{DryRunCall, EnforceError, Output};
+
+const FIRST: ListId = ListId::new(1);
 
 const START: i64 = 1_800_000_000;
 
@@ -121,7 +123,10 @@ fn refusal(response: Response) -> (ErrorKind, String) {
 }
 
 fn add(service: &mut Service<FakeClock, impl Enforcer>, site: &str) -> Status {
-    status(service.handle(Command::AddSite { site: site.into() }))
+    status(service.handle(Command::AddSite {
+        list: FIRST,
+        site: site.into(),
+    }))
 }
 
 #[test]
@@ -129,9 +134,10 @@ fn adds_cleaned_sites_and_reports_bad_ones() {
     let rig = Rig::new();
     let mut service = rig.start();
     let after = add(&mut service, "https://www.YouTube.com/watch?v=x");
-    assert_eq!(after.sites[0].domain, d("youtube.com"));
+    assert_eq!(after.lists[0].sites[0].domain, d("youtube.com"));
 
     let (kind, message) = refusal(service.handle(Command::AddSite {
+        list: FIRST,
         site: "localhost".into(),
     }));
     assert_eq!(kind, ErrorKind::InvalidSite);
@@ -140,7 +146,10 @@ fn adds_cleaned_sites_and_reports_bad_ones() {
         "That is not a full site name (localhost); try something like localhost.com"
     );
 
-    let (kind, _) = refusal(service.handle(Command::StartBlock { secs: 5 }));
+    let (kind, _) = refusal(service.handle(Command::StartBlock {
+        secs: 5,
+        lists: vec![FIRST],
+    }));
     assert_eq!(kind, ErrorKind::InvalidDuration);
 }
 
@@ -149,14 +158,15 @@ fn adds_apps_and_reports_bad_ones() {
     let rig = Rig::new();
     let mut service = rig.start();
     let after = status(service.handle(Command::AddApp {
+        list: FIRST,
         bundle_id: "com.tinyspeck.SlackMacGap".into(),
         name: " Slack ".into(),
     }));
     assert_eq!(
-        after.apps[0].bundle_id.as_str(),
+        after.lists[0].apps[0].bundle_id.as_str(),
         "com.tinyspeck.slackmacgap"
     );
-    assert_eq!(after.apps[0].name.as_str(), "Slack");
+    assert_eq!(after.lists[0].apps[0].name.as_str(), "Slack");
 
     let cases = [
         (
@@ -186,6 +196,7 @@ fn adds_apps_and_reports_bad_ones() {
     ];
     for (name, bundle_id, app, want) in cases {
         let (kind, _) = refusal(service.handle(Command::AddApp {
+            list: FIRST,
             bundle_id: bundle_id.into(),
             name: app.into(),
         }));
@@ -194,13 +205,15 @@ fn adds_apps_and_reports_bad_ones() {
     assert_eq!(service.state().lists()[0].apps().entries().len(), 1);
 
     let (kind, _) = refusal(service.handle(Command::RemoveApp {
+        list: FIRST,
         bundle_id: "slack".into(),
     }));
     assert_eq!(kind, ErrorKind::InvalidApp);
     let after = status(service.handle(Command::RemoveApp {
+        list: FIRST,
         bundle_id: "com.tinyspeck.slackmacgap".into(),
     }));
-    assert_eq!(after.apps, Vec::new());
+    assert_eq!(after.lists[0].apps, Vec::new());
 }
 
 #[test]
@@ -210,7 +223,10 @@ fn a_block_is_enforced_counted_down_and_cleared() {
     add(&mut service, "youtube.com");
     assert!(!rig.blocked.is_active(), "listing alone blocks nothing");
 
-    let started = status(service.handle(Command::StartBlock { secs: 120 }));
+    let started = status(service.handle(Command::StartBlock {
+        secs: 120,
+        lists: vec![FIRST],
+    }));
     assert_eq!(started.block.as_ref().map(|b| b.remaining_secs), Some(120));
     assert!(rig.blocked.blocks_name("m.youtube.com"));
     assert_eq!(
@@ -234,7 +250,10 @@ fn wall_clock_changes_do_not_shorten_a_block() {
     let rig = Rig::new();
     let mut service = rig.start();
     add(&mut service, "youtube.com");
-    service.handle(Command::StartBlock { secs: 3600 });
+    service.handle(Command::StartBlock {
+        secs: 3600,
+        lists: vec![FIRST],
+    });
 
     rig.clock
         .set_wall(Timestamp::from_second(START + 86_400 * 30).expect("valid"));
@@ -248,7 +267,10 @@ fn an_unreadable_monotonic_clock_never_ends_a_block() {
     let rig = Rig::new();
     let mut service = rig.start();
     add(&mut service, "youtube.com");
-    service.handle(Command::StartBlock { secs: 60 });
+    service.handle(Command::StartBlock {
+        secs: 60,
+        lists: vec![FIRST],
+    });
     rig.clock.break_monotonic();
     rig.clock.advance(Duration::from_secs(600));
     service.tick();
@@ -260,7 +282,10 @@ fn verifies_and_persists_every_interval_while_blocking() {
     let rig = Rig::new();
     let mut service = rig.start();
     add(&mut service, "youtube.com");
-    service.handle(Command::StartBlock { secs: 600 });
+    service.handle(Command::StartBlock {
+        secs: 600,
+        lists: vec![FIRST],
+    });
     let verifies = |s: &Service<FakeClock, DryRunEnforcer>| {
         s.enforcer()
             .calls()
@@ -290,7 +315,10 @@ fn restart_keeps_the_block_and_credits_downtime() {
     {
         let mut service = rig.start();
         add(&mut service, "youtube.com");
-        service.handle(Command::StartBlock { secs: 3600 });
+        service.handle(Command::StartBlock {
+            secs: 3600,
+            lists: vec![FIRST],
+        });
     }
     rig.blocked.replace(BTreeSet::new());
     rig.clock.advance(Duration::from_secs(600));
@@ -333,13 +361,19 @@ fn potions_end_blocks_and_run_out() {
     assert_eq!(kind, ErrorKind::NotBlocking);
 
     for left in (0..5).rev() {
-        service.handle(Command::StartBlock { secs: 3600 });
+        service.handle(Command::StartBlock {
+            secs: 3600,
+            lists: vec![FIRST],
+        });
         let after = status(service.handle(Command::DrinkPotion));
         assert_eq!(after.potions.available, left);
         assert_eq!(after.block, None);
         assert!(!rig.blocked.is_active());
     }
-    service.handle(Command::StartBlock { secs: 3600 });
+    service.handle(Command::StartBlock {
+        secs: 3600,
+        lists: vec![FIRST],
+    });
     let (kind, message) = refusal(service.handle(Command::DrinkPotion));
     assert_eq!(kind, ErrorKind::NoPotions);
     assert_eq!(
@@ -364,6 +398,7 @@ fn a_change_that_cannot_be_saved_is_refused() {
     fs::create_dir(rig.store().path()).expect("blocks the path with a directory");
 
     let (kind, _) = refusal(service.handle(Command::AddSite {
+        list: FIRST,
         site: "youtube.com".into(),
     }));
     assert_eq!(kind, ErrorKind::Internal);
@@ -395,7 +430,10 @@ fn enforcement_failures_never_end_a_block() {
     let rig = Rig::new();
     let mut service = rig.start_with(BrokenEnforcer);
     add(&mut service, "youtube.com");
-    let started = status(service.handle(Command::StartBlock { secs: 600 }));
+    let started = status(service.handle(Command::StartBlock {
+        secs: 600,
+        lists: vec![FIRST],
+    }));
     assert!(started.block.is_some());
     rig.clock.advance(VERIFY_EVERY);
     service.tick();
@@ -408,6 +446,7 @@ fn enforcement_failures_never_end_a_block() {
 
 fn add_discord(service: &mut Service<FakeClock, impl Enforcer>) {
     status(service.handle(Command::AddApp {
+        list: FIRST,
         bundle_id: "com.hnc.discord".into(),
         name: "Discord".into(),
     }));
@@ -421,7 +460,10 @@ fn an_app_block_closes_apps_and_reports_new_launches() {
     rig.run(DISCORD);
     assert_eq!(rig.ps_calls(), 0, "listing alone closes nothing");
 
-    let started = status(service.handle(Command::StartBlock { secs: 120 }));
+    let started = status(service.handle(Command::StartBlock {
+        secs: 120,
+        lists: vec![FIRST],
+    }));
     assert_eq!(rig.terminator.take(), [(700, Stop::Term)]);
     assert_eq!(
         started.blocked_launches,
@@ -459,7 +501,10 @@ fn a_launch_caught_by_an_unrelated_change_still_gets_a_shield() {
     let rig = Rig::new();
     let mut service = rig.start();
     add_discord(&mut service);
-    status(service.handle(Command::StartBlock { secs: 120 }));
+    status(service.handle(Command::StartBlock {
+        secs: 120,
+        lists: vec![FIRST],
+    }));
 
     rig.run(DISCORD);
     let after = add(&mut service, "example.com");
@@ -472,7 +517,10 @@ fn sweeps_at_most_once_a_second() {
     let rig = Rig::new();
     let mut service = rig.start();
     add_discord(&mut service);
-    status(service.handle(Command::StartBlock { secs: 120 }));
+    status(service.handle(Command::StartBlock {
+        secs: 120,
+        lists: vec![FIRST],
+    }));
     let calls = rig.ps_calls();
     for _ in 0..5 {
         status(service.handle(Command::Status));
@@ -489,7 +537,10 @@ fn a_restart_mid_block_closes_apps_again() {
     {
         let mut service = rig.start();
         add_discord(&mut service);
-        status(service.handle(Command::StartBlock { secs: 600 }));
+        status(service.handle(Command::StartBlock {
+            secs: 600,
+            lists: vec![FIRST],
+        }));
         service.save().expect("saves");
     }
     rig.terminator.take();
@@ -504,8 +555,96 @@ fn a_sites_only_block_never_lists_processes() {
     let rig = Rig::new();
     let mut service = rig.start();
     add(&mut service, "youtube.com");
-    status(service.handle(Command::StartBlock { secs: 120 }));
+    status(service.handle(Command::StartBlock {
+        secs: 120,
+        lists: vec![FIRST],
+    }));
     rig.clock.advance(Duration::from_secs(10));
     service.tick();
     assert_eq!(rig.ps_calls(), 0);
+}
+
+fn create(service: &mut Service<FakeClock, impl Enforcer>, name: &str) -> ListId {
+    let after = status(service.handle(Command::CreateList { name: name.into() }));
+    let list = after.lists.last().expect("created");
+    assert_eq!(list.name.as_str(), name.trim());
+    list.id
+}
+
+#[test]
+fn manages_lists_and_reports_bad_names() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+    let work = create(&mut service, " Work ");
+
+    let cases = [
+        ("empty name", "  ", ErrorKind::InvalidList),
+        ("taken name", "WORK", ErrorKind::AlreadyListed),
+    ];
+    for (case, name, want) in cases {
+        let (kind, _) = refusal(service.handle(Command::CreateList { name: name.into() }));
+        assert_eq!(kind, want, "{case}");
+    }
+
+    let after = status(service.handle(Command::RenameList {
+        list: work,
+        name: "Deep work".into(),
+    }));
+    assert_eq!(after.lists[1].name.as_str(), "Deep work");
+    let after = status(service.handle(Command::DeleteList { list: work }));
+    assert_eq!(after.lists.len(), 1);
+
+    let (kind, _) = refusal(service.handle(Command::DeleteList { list: work }));
+    assert_eq!(kind, ErrorKind::ListNotFound);
+    let (kind, _) = refusal(service.handle(Command::DeleteList { list: FIRST }));
+    assert_eq!(kind, ErrorKind::Locked, "the last list stays");
+}
+
+#[test]
+fn a_block_enforces_only_its_lists() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+    add(&mut service, "youtube.com");
+    let work = create(&mut service, "Work");
+    status(service.handle(Command::AddSite {
+        list: work,
+        site: "slack.com".into(),
+    }));
+
+    let started = status(service.handle(Command::StartBlock {
+        secs: 600,
+        lists: vec![work],
+    }));
+    assert_eq!(started.block.map(|block| block.lists), Some(vec![work]));
+    assert!(rig.blocked.blocks_name("slack.com"));
+    assert!(!rig.blocked.blocks_name("youtube.com"));
+
+    add(&mut service, "x.com");
+    assert!(!rig.blocked.blocks_name("x.com"), "not a list in the block");
+    status(service.handle(Command::AddSite {
+        list: work,
+        site: "x.com".into(),
+    }));
+    assert!(rig.blocked.blocks_name("x.com"), "joins the block at once");
+
+    let (kind, _) = refusal(service.handle(Command::DeleteList { list: work }));
+    assert_eq!(kind, ErrorKind::Locked);
+    status(service.handle(Command::RemoveSite {
+        list: FIRST,
+        site: "x.com".into(),
+    }));
+    assert!(rig.blocked.blocks_name("x.com"), "still on a blocked list");
+}
+
+#[test]
+fn a_block_over_an_unknown_list_is_refused() {
+    let rig = Rig::new();
+    let mut service = rig.start();
+    add(&mut service, "youtube.com");
+    let (kind, _) = refusal(service.handle(Command::StartBlock {
+        secs: 600,
+        lists: vec![ListId::new(9)],
+    }));
+    assert_eq!(kind, ErrorKind::ListNotFound);
+    assert!(!rig.blocked.is_active());
 }

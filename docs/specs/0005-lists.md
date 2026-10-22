@@ -14,7 +14,7 @@ OrcBlock has one list. Everything on it is blocked every time. Someone who wants
 5. **During a block.** Lists in the block show a lock. Their sites and apps cannot be removed, the list cannot be deleted, and anything added to them is blocked at once (as today). Lists not in the block can be edited, renamed and deleted freely; adding to them does not change the running block. Any list can be renamed.
 6. **Duplicates.** The same site or app may sit in several lists. Within one list the existing rule holds: `m.youtube.com` is refused when `youtube.com` is there.
 7. **Limits.** At most 32 lists. A name is 1 to 40 characters after trimming, unique ignoring case. Errors are shown verbatim: "There is already a list named Social".
-8. **CLI.** `orcblock lists`, `orcblock list create|rename|delete`, and `--list <name>` on `add`, `remove`, `add-app`, `remove-app` and `start` (default: the only list, or an error naming the lists when there are several; `start` defaults to all lists, as today).
+8. **CLI.** `orcblock status` shows every list, `orcblock list create|rename|delete`, and `--list <name>` on `add`, `remove`, `add-app`, `remove-app` and `start` (default: the only list, or an error naming the lists when there are several; `start` defaults to all lists, as today).
 9. **Helper too old.** The app already shows "update the helper" on a version mismatch; nothing new.
 
 ### UI sketch (right panel)
@@ -31,15 +31,15 @@ OrcBlock has one list. Everything on it is blocked every time. Someone who wants
 The ▾ menu lists every list with its checkbox, count and lock. Final layout goes through the ui-reviewer.
 
 ## Acceptance criteria
-- [ ] `ListName` accepts 1 to 40 characters after trimming, no control characters, and compares ignoring case. Table tests and proptests.
-- [ ] A `state.json` from 0.2.0 (single blocklist and app list, with and without a running session) loads into one list named "My list", and a running session keeps its sites, apps and remaining time.
-- [ ] Creating a 33rd list, a duplicate name or an empty name is refused without changing state.
-- [ ] `start_block` blocks the union of the given lists; it refuses unknown list IDs and an empty union with `EmptyBlocklist`.
-- [ ] During a block, removing a site or app from a list in the block, or deleting such a list, is refused with `Locked`; the same actions on a list outside the block succeed.
-- [ ] Adding to a list in the block enforces the new target at once; adding to a list outside the block leaves `blocked_domains()` and `blocked_apps()` unchanged.
-- [ ] Removing a site from list B never unblocks it while list A, which is in the block, still lists it (the session's frozen set is the authority).
-- [ ] Deleting the last list is refused.
-- [ ] `PROTOCOL_VERSION` is 3; a version-2 client gets `Version`, not a misread status.
+- [x] `ListName` accepts 1 to 40 characters after trimming, no control characters, and compares ignoring case. Table tests and proptests.
+- [x] A `state.json` from 0.2.0 (single blocklist and app list, with and without a running session) loads into one list named "My list", and a running session keeps its sites, apps and remaining time.
+- [x] Creating a 33rd list, a duplicate name or an empty name is refused without changing state.
+- [x] `start_block` blocks the union of the given lists; it refuses unknown list IDs and an empty union with `EmptyBlocklist`.
+- [x] During a block, removing a site or app from a list in the block, or deleting such a list, is refused with `Locked`; the same actions on a list outside the block succeed.
+- [x] Adding to a list in the block enforces the new target at once; adding to a list outside the block leaves `blocked_domains()` and `blocked_apps()` unchanged.
+- [x] Removing a site from list B never unblocks it while list A, which is in the block, still lists it (the session's frozen set is the authority).
+- [x] Deleting the last list is refused.
+- [x] `PROTOCOL_VERSION` is 3; a version-2 client gets `Version`, not a misread status.
 - [ ] The app switches lists, creates, renames and deletes them, and starts a block over the checked lists. Checked lists survive an app restart. vitest covers the selection logic.
 
 ## Design

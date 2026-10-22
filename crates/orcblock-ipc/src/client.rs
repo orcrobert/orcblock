@@ -3,7 +3,7 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use orcblock_core::BlockDuration;
+use orcblock_core::{BlockDuration, ListId};
 
 use crate::codec::{self, CodecError};
 use crate::{Command, ErrorKind, Request, Response, Status};
@@ -79,39 +79,73 @@ impl Client {
         self.send(Command::Status)
     }
 
-    /// Lists `site` (a domain or URL as typed).
-    pub fn add_site(&self, site: &str) -> Result<Status, ClientError> {
+    /// Creates an empty list named `name`.
+    pub fn create_list(&self, name: &str) -> Result<Status, ClientError> {
+        self.send(Command::CreateList {
+            name: name.to_owned(),
+        })
+    }
+
+    /// Renames `list` to `name`.
+    pub fn rename_list(&self, list: ListId, name: &str) -> Result<Status, ClientError> {
+        self.send(Command::RenameList {
+            list,
+            name: name.to_owned(),
+        })
+    }
+
+    /// Deletes `list` and everything on it.
+    pub fn delete_list(&self, list: ListId) -> Result<Status, ClientError> {
+        self.send(Command::DeleteList { list })
+    }
+
+    /// Adds `site` (a domain or URL as typed) to `list`.
+    pub fn add_site(&self, list: ListId, site: &str) -> Result<Status, ClientError> {
         self.send(Command::AddSite {
+            list,
             site: site.to_owned(),
         })
     }
 
-    /// Unlists `site`.
-    pub fn remove_site(&self, site: &str) -> Result<Status, ClientError> {
+    /// Removes `site` from `list`.
+    pub fn remove_site(&self, list: ListId, site: &str) -> Result<Status, ClientError> {
         self.send(Command::RemoveSite {
+            list,
             site: site.to_owned(),
         })
     }
 
-    /// Lists the app with `bundle_id`, shown as `name`.
-    pub fn add_app(&self, bundle_id: &str, name: &str) -> Result<Status, ClientError> {
+    /// Adds the app with `bundle_id`, shown as `name`, to `list`.
+    pub fn add_app(
+        &self,
+        list: ListId,
+        bundle_id: &str,
+        name: &str,
+    ) -> Result<Status, ClientError> {
         self.send(Command::AddApp {
+            list,
             bundle_id: bundle_id.to_owned(),
             name: name.to_owned(),
         })
     }
 
-    /// Unlists the app with `bundle_id`.
-    pub fn remove_app(&self, bundle_id: &str) -> Result<Status, ClientError> {
+    /// Removes the app with `bundle_id` from `list`.
+    pub fn remove_app(&self, list: ListId, bundle_id: &str) -> Result<Status, ClientError> {
         self.send(Command::RemoveApp {
+            list,
             bundle_id: bundle_id.to_owned(),
         })
     }
 
-    /// Starts a block.
-    pub fn start_block(&self, duration: BlockDuration) -> Result<Status, ClientError> {
+    /// Starts a block over `lists`.
+    pub fn start_block(
+        &self,
+        lists: &[ListId],
+        duration: BlockDuration,
+    ) -> Result<Status, ClientError> {
         self.send(Command::StartBlock {
             secs: duration.into(),
+            lists: lists.to_vec(),
         })
     }
 

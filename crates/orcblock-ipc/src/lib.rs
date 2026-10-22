@@ -14,6 +14,6 @@ mod protocol;
 
 pub use client::{Client, ClientError, DEFAULT_SOCKET};
 pub use protocol::{
-    App, Block, BlockedLaunch, Command, ErrorKind, MAX_MESSAGE_LEN, Mode, PROTOCOL_VERSION,
+    App, Block, BlockedLaunch, Command, ErrorKind, List, MAX_MESSAGE_LEN, Mode, PROTOCOL_VERSION,
     Potions, Request, Response, Site, Status,
 };
