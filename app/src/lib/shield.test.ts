@@ -13,12 +13,12 @@ const launch = (id: number, name: string): BlockedLaunch => ({
 const status = (launches: BlockedLaunch[], remaining: number | null): Status => ({
   daemon_version: "0.1.0",
   mode: "live",
-  sites: [],
-  apps: [],
+  lists: [{ id: 1, name: "My list", sites: [], apps: [] }],
   block:
     remaining === null
       ? null
       : {
+          lists: [1],
           domains: [],
           apps: ["com.example.slack"],
           started_at: "2026-10-20T12:00:00Z",

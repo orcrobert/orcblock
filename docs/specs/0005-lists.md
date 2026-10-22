@@ -40,7 +40,7 @@ The ▾ menu lists every list with its checkbox, count and lock. Final layout go
 - [x] Removing a site from list B never unblocks it while list A, which is in the block, still lists it (the session's frozen set is the authority).
 - [x] Deleting the last list is refused.
 - [x] `PROTOCOL_VERSION` is 3; a version-2 client gets `Version`, not a misread status.
-- [ ] The app switches lists, creates, renames and deletes them, and starts a block over the checked lists. Checked lists survive an app restart. vitest covers the selection logic.
+- [x] The app switches lists, creates, renames and deletes them, and starts a block over the checked lists. Checked lists survive an app restart. vitest covers the selection logic.
 
 ## Design
 
