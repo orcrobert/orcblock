@@ -116,6 +116,7 @@
     try {
       const next = await api.createList(name);
       onstatus(next);
+      // The daemon appends new lists, so the last one is the new one.
       const created = next.lists.at(-1);
       if (created) selectList(created.id);
       return null;
@@ -265,7 +266,9 @@
         </Button>
       {:else}
         <Button disabled={busy || targetCount(chosen) === 0} onclick={arm}>
-          <span class="label">{armLabel(status.lists, chosen)}</span><span>&gt;&gt;&gt;</span>
+          <span class="label" title={armLabel(status.lists, chosen)}
+            >{armLabel(status.lists, chosen)}</span
+          ><span>&gt;&gt;&gt;</span>
         </Button>
       {/if}
     </footer>

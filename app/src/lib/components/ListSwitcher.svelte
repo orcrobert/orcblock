@@ -43,6 +43,8 @@
   let toggle: HTMLButtonElement | undefined = $state();
   let input: HTMLInputElement | undefined = $state();
 
+  let dialogWasOpen = false;
+
   const blocking = $derived(blocked.length > 0);
   const locked = $derived(blocked.includes(current.id));
   const several = $derived(lists.length > 1);
@@ -84,17 +86,25 @@
   }
 
   $effect(() => {
+    const dialogOpen = naming || deleting;
+    if (dialogWasOpen && !dialogOpen) toggle?.focus();
+    dialogWasOpen = dialogOpen;
+  });
+
+  $effect(() => {
     if (!open) return;
-    const outside = (event: PointerEvent) => {
+    const outside = (event: Event) => {
       if (!switcher?.contains(event.target as Node)) open = false;
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
     };
     window.addEventListener("pointerdown", outside);
+    window.addEventListener("focusin", outside);
     window.addEventListener("keydown", escape);
     return () => {
       window.removeEventListener("pointerdown", outside);
+      window.removeEventListener("focusin", outside);
       window.removeEventListener("keydown", escape);
     };
   });
@@ -111,16 +121,19 @@
         onclick={() => ontoggle(current.id)}
       ></button>
     {/if}
-    <button
-      class="name"
-      bind:this={toggle}
-      aria-expanded={open}
-      aria-controls="{uid}-menu"
-      onclick={() => (open = !open)}
-    >
-      <span id="targets-title">[ {current.name} ]</span>
-      <span aria-hidden="true">{open ? "▴" : "▾"}</span>
-    </button>
+    <h2>
+      <button
+        class="name"
+        bind:this={toggle}
+        aria-expanded={open}
+        aria-controls="{uid}-menu"
+        title={current.name}
+        onclick={() => (open = !open)}
+      >
+        <span id="targets-title">[ {current.name} ]</span>
+        <span aria-hidden="true">{open ? "▴" : "▾"}</span>
+      </button>
+    </h2>
     <span class="muted">{locked ? "LOCKED // " : ""}{pad2(targetCount([current]))}</span>
   </header>
 
@@ -144,6 +157,7 @@
             <button
               class="pick"
               aria-current={list.id === current.id ? "true" : undefined}
+              title={list.name}
               onclick={() => pick(list.id)}>{list.name}</button
             >
             <span class="muted">{inBlock ? "LOCKED" : pad2(targetCount([list]))}</span>
@@ -226,6 +240,12 @@
   header .muted {
     margin-left: auto;
   }
+  h2 {
+    display: flex;
+    min-width: 0;
+    margin: 0;
+    font: inherit;
+  }
   button {
     border: none;
     background: transparent;
@@ -250,14 +270,24 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* A 24px hit area around a 12px box. */
   .tick {
+    display: grid;
     flex: none;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    margin: 0 -6px;
+    padding: 0;
+  }
+  .tick::before {
     width: 12px;
     height: 12px;
-    padding: 0;
+    box-sizing: border-box;
     border: var(--rule-thin) solid var(--ink);
+    content: "";
   }
-  .tick[aria-checked="true"] {
+  .tick[aria-checked="true"]::before {
     background: var(--ink);
   }
   .menu {
@@ -298,7 +328,8 @@
     width: 12px;
     text-align: center;
   }
-  .red {
+  .state.red,
+  .hint .red {
     color: var(--red);
   }
   .hint {
@@ -319,6 +350,7 @@
     color: var(--paper);
   }
   .actions button:disabled {
+    background: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 8px);
     color: var(--ink-muted);
     cursor: default;
   }
@@ -337,12 +369,18 @@
     user-select: text;
     outline: none;
   }
-  .field input:focus {
-    box-shadow: inset 0 -2px 0 var(--red);
+  .field input::placeholder {
+    color: var(--ink-muted);
+  }
+  .field input:focus-visible {
+    outline: var(--rule-thick) solid var(--red);
+    outline-offset: 1px;
   }
   .error {
-    min-height: 1em;
     margin: 0;
     color: var(--red);
+  }
+  .error:empty {
+    display: none;
   }
 </style>
