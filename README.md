@@ -37,6 +37,10 @@ orcblock potion                                  # ends the block, uses one of f
 
 `make daemon-dev` runs the helper without root, and it never touches your system: a dry-run enforcer logs what it would do. `make dev` runs the app against it. `make check` is the gate CI runs. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Credits
+
+The starter list "Social media & video" is based on the platforms the [Pew Research Center's Social Media Fact Sheet](https://www.pewresearch.org/internet/fact-sheet/social-media/) (2026) surveys. OrcBlock is not affiliated with Pew; the choice of sites is ours.
+
 ## License
 
 [AGPL-3.0](LICENSE).

@@ -1,6 +1,6 @@
 # 0005: Named lists of sites and apps
 
-Status: approved (maintainer, 2026-10-22)
+Status: done
 Issue: none (maintainer request, 2026-10-22)
 
 ## Problem
@@ -41,6 +41,9 @@ The ▾ menu lists every list with its checkbox, count and lock. Final layout go
 - [x] Deleting the last list is refused.
 - [x] `PROTOCOL_VERSION` is 3; a version-2 client gets `Version`, not a misread status.
 - [x] The app switches lists, creates, renames and deletes them, and starts a block over the checked lists. Checked lists survive an app restart. vitest covers the selection logic.
+- [x] PR 2: `create_list` with `sites` and `apps` creates the list with all of them or, if any is refused, nothing; at most 256 at once.
+- [x] PR 2: New list offers "Start from: Social media & video"; an empty list offers it in one click while no list carries that name.
+- [x] PR 2: the preset's list shows "BASED ON PEW RESEARCH CENTER, SOCIAL MEDIA FACT SHEET, 2026", and the README credits the source. vitest checks the preset's domains.
 
 ## Design
 
