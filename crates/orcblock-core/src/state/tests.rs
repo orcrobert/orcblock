@@ -813,3 +813,23 @@ fn a_list_created_with_a_refused_target_is_not_created() {
         assert_eq!(state, before, "{case}");
     }
 }
+
+#[test]
+fn a_list_can_start_with_the_most_targets() {
+    let mut state = State::new(october());
+    let sites = (0..MAX_NEW_TARGETS)
+        .map(|n| d(&format!("site{n}.com")))
+        .collect();
+    let id = state
+        .create_list_with(list_name("Many"), sites, vec![], NOW)
+        .expect("exactly the most is fine");
+    assert_eq!(
+        state.list(id).map(|list| list.sites().entries().len()),
+        Some(MAX_NEW_TARGETS)
+    );
+    assert!(
+        CommandError::TooManyTargets
+            .to_string()
+            .contains(&MAX_NEW_TARGETS.to_string())
+    );
+}

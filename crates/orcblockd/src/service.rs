@@ -3,7 +3,9 @@ use std::io;
 use std::time::Duration;
 
 use jiff::Timestamp;
-use orcblock_core::{AppName, BlockDuration, BundleId, CommandError, Domain, ListName, State};
+use orcblock_core::{
+    AppName, BlockDuration, BundleId, CommandError, Domain, ListName, MAX_NEW_TARGETS, State,
+};
 use orcblock_ipc::{Command, ErrorKind, Mode, Response, Status};
 use tracing::{error, info, warn};
 
@@ -133,6 +135,10 @@ impl<C: Clock, E: Enforcer> Service<C, E> {
         match command {
             Command::Status => self.ok(),
             Command::CreateList { name, sites, apps } => {
+                // Refused before parsing, which runs under the service lock.
+                if sites.len() + apps.len() > MAX_NEW_TARGETS {
+                    return refusal(ErrorKind::InvalidList, &CommandError::TooManyTargets);
+                }
                 let name = match ListName::parse(&name) {
                     Ok(name) => name,
                     Err(err) => return refusal(ErrorKind::InvalidList, &err),
