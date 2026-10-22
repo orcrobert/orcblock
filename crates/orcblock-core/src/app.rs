@@ -171,7 +171,7 @@ fn shown(id: &str) -> String {
 /// characters and line separators), so a name could read as something else
 /// on the shield and in the list. The zero-width joiner stays allowed: emoji
 /// such as 👩‍💻 are built with it.
-fn is_invisible(c: char) -> bool {
+pub(crate) fn is_invisible(c: char) -> bool {
     matches!(
         c,
         '\u{00AD}'
