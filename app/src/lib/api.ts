@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-import type { Offer } from "./update";
+import type { Offer, Progress } from "./update";
 
 export interface Site {
   /** Cleaned ASCII domain, used for commands and favicons. */
@@ -113,11 +113,9 @@ export function onStatus(handler: (event: StatusEvent) => void): Promise<Unliste
   return listen<StatusEvent>("status", (event) => handler(event.payload));
 }
 
-/** Download progress of an update; `percent` is null without a known size. */
-export function onUpdateProgress(handler: (percent: number | null) => void): Promise<UnlistenFn> {
-  return listen<{ percent: number | null }>("update_progress", (event) =>
-    handler(event.payload.percent),
-  );
+/** Progress of an update install. */
+export function onUpdateProgress(handler: (progress: Progress) => void): Promise<UnlistenFn> {
+  return listen<Progress>("update_progress", (event) => handler(event.payload));
 }
 
 export function isAppError(value: unknown): value is AppError {
