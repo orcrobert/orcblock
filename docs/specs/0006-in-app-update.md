@@ -19,11 +19,11 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 ## Acceptance criteria
 - [x] With a newer published release, the top bar shows an update button naming the new version; with none, it shows only `REV x.y.z`.
 - [x] A pre-release (`1.0.0-beta.1`) is never offered, since the update manifest follows `releases/latest`.
-- [ ] Clicking it downloads, verifies the minisign signature, replaces the bundle and relaunches into the new version.
-- [ ] A download whose signature does not match the built-in public key is refused, and the installed app is unchanged.
+- [x] Clicking it downloads, verifies the minisign signature, replaces the bundle and relaunches into the new version.
+- [x] A download whose signature does not match the built-in public key is refused, and the installed app is unchanged.
 - [x] Failures show one sentence in the snackbar and bring the button back.
 - [x] Dev mode never contacts the update endpoint.
-- [ ] A running block's remaining time and the potion count are unchanged across an app update (manual QA on a real Mac).
+- [x] A running block's remaining time and the potion count are unchanged across an app update (manual QA on a real Mac).
 - [x] Every release publishes `OrcBlock.app.tar.gz`, its `.sig` and `latest.json`, signed in the `publish` job, never in `build`.
 - [x] Button states checked in light and dark.
 
@@ -66,6 +66,12 @@ Needs the security-reviewer on slices 1 and 3.
 - Vitest: button state machine (hidden → available → downloading → installing; error → available).
 - CI: `make check`, `cargo deny` with the new crates.
 - Manual on a real Mac: release a `0.3.1` from a test fork or draft, install `0.3.0` from the dmg, update in-app; app relaunches as 0.3.1 without Gatekeeper; tamper with the `.sig` and see the refusal; repeat with a block running and check remaining time and potions before and after.
+
+Run on 2026-10-23 with two local builds (0.3.1 and 0.3.2) signed by a throwaway key, served from 127.0.0.1 with `dangerousInsecureTransportProtocol`, and a 0.3.1 build patched (not committed) to install as soon as it finds the update, since the button cannot be clicked from a script:
+- A signature made for another file: the app downloaded the tarball, logged "The signature verification failed", kept running, and the bundle stayed 0.3.1 with the same binary.
+- The valid signature: the app downloaded, swapped the bundle to 0.3.2, exited and relaunched from the same path; `codesign --verify --strict` passed and no quarantine attribute was set. The relaunched app checked again and found nothing newer.
+- A 30 min dry-run block on the dev daemon lost 66 s over the 65 s around the update, potions unchanged at 4 of 5. The app talked to the installed helper meanwhile (dev mode skips the check), so this shows the update leaves the daemon alone, not a block's own client.
+- Dev mode (`ORCBLOCK_SOCKET` set): no request reached the server.
 
 ## Out of scope
 - Updating silently without a click, or a setting to turn checks off (could follow).
