@@ -76,9 +76,6 @@ jobs:
           cp dist/OrcBlock.dmg "dist/OrcBlock_${TAG#v}_macos_universal.dmg"
           cp target/universal-apple-darwin/release/bundle/macos/OrcBlock.app.tar.gz dist/
           (cd dist && shasum -a 256 -- *.dmg OrcBlock.app.tar.gz > SHA256SUMS)
-          # Only for the publish job to check its signature against what
-          # the app trusts; never published.
-          jq -r .plugins.updater.pubkey app/src-tauri/tauri.conf.json | base64 -d > dist/updater.pub
           cp .github/release-notes.md dist/release-notes.md
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -107,8 +104,13 @@ jobs:
           path: dist
       - name: Checksums still match
         run: cd dist && sha256sum --check SHA256SUMS
+      - name: Install minisign
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq minisign
       # The key lives only in the release environment and reaches no job
-      # that runs repository code. The trusted comment carries the version,
+      # that runs repository code; this step sees nothing else the build
+      # made but the tarball. The trusted comment carries the version,
       # which the app requires (requireSignedVersion), so a tampered
       # latest.json cannot pair a new version with an older bundle.
       - name: Sign the update
@@ -117,18 +119,25 @@ jobs:
           PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           [ -n "$KEY" ] || { echo "TAURI_SIGNING_PRIVATE_KEY is not set in the release environment" >&2; exit 1; }
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq minisign
-          version=${TAG#v}
           key="$RUNNER_TEMP/updater.key"
+          trap 'rm -f "$key"' EXIT
           (umask 077 && printf '%s' "$KEY" | base64 -d > "$key")
-          comment=$(printf 'timestamp:%s\tfile:OrcBlock.app.tar.gz\tversion:%s' "$(date +%s)" "$version")
+          comment=$(printf 'timestamp:%s\tfile:OrcBlock.app.tar.gz\tversion:%s' "$(date +%s)" "${TAG#v}")
           printf '%s\n' "$PASSWORD" | minisign -S -s "$key" -m dist/OrcBlock.app.tar.gz -x "$RUNNER_TEMP/update.minisig" -t "$comment"
-          rm -f "$key"
-          minisign -V -p dist/updater.pub -m dist/OrcBlock.app.tar.gz -x "$RUNNER_TEMP/update.minisig"
+      # Checks the signature against the public key of the commit being
+      # released, read from GitHub rather than from the build's files, so a
+      # key that does not match the app's fails here instead of breaking
+      # every update.
+      - name: Check the signature and write latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/contents/app/src-tauri/tauri.conf.json?ref=$GITHUB_SHA" --jq .content \
+            | base64 -d | jq -r .plugins.updater.pubkey | base64 -d > "$RUNNER_TEMP/updater.pub"
+          minisign -V -p "$RUNNER_TEMP/updater.pub" -m dist/OrcBlock.app.tar.gz -x "$RUNNER_TEMP/update.minisig"
           base64 -w0 "$RUNNER_TEMP/update.minisig" > dist/OrcBlock.app.tar.gz.sig
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/OrcBlock.app.tar.gz"
-          jq -n --arg version "$version" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg url "$url" \
+          jq -n --arg version "${TAG#v}" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg url "$url" \
             --rawfile signature dist/OrcBlock.app.tar.gz.sig \
             '{version: $version, pub_date: $date, platforms: {
               "darwin-aarch64": {url: $url, signature: $signature},
