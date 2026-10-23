@@ -17,15 +17,15 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 8. Helper not installed: the app still offers its own update and keeps showing the existing install prompt.
 
 ## Acceptance criteria
-- [ ] With a newer published release, the top bar shows an update button naming the new version; with none, it shows only `REV x.y.z`.
+- [x] With a newer published release, the top bar shows an update button naming the new version; with none, it shows only `REV x.y.z`.
 - [ ] A pre-release (`1.0.0-beta.1`) is never offered, since the update manifest follows `releases/latest`.
 - [ ] Clicking it downloads, verifies the minisign signature, replaces the bundle and relaunches into the new version.
 - [ ] A download whose signature does not match the built-in public key is refused, and the installed app is unchanged.
-- [ ] Failures show one sentence in the snackbar and bring the button back.
-- [ ] Dev mode never contacts the update endpoint.
+- [x] Failures show one sentence in the snackbar and bring the button back.
+- [x] Dev mode never contacts the update endpoint.
 - [ ] A running block's remaining time and the potion count are unchanged across an app update (manual QA on a real Mac).
 - [ ] Every release publishes `OrcBlock.app.tar.gz`, its `.sig` and `latest.json`, signed in the `publish` job, never in `build`.
-- [ ] Button states checked in light and dark.
+- [x] Button states checked in light and dark.
 
 ## Design
 **Dependency (needs ADR 0007).** `tauri-plugin-updater` (Rust only, MIT/Apache-2.0, maintained by the Tauri team, same release train as `tauri`). It downloads, verifies minisign signatures with `minisign-verify`, unpacks the `.app.tar.gz` and swaps the bundle. Hand-rolling this would mean our own signature verification, which is worse. The npm `@tauri-apps/plugin-updater` is not needed: the UI goes through our own Tauri commands, and relaunching uses `AppHandle::restart`, so no `tauri-plugin-process` either. The ADR records its transitive crates (`reqwest`, `tar`, `flate2`, ...) and what `cargo deny` says about them.

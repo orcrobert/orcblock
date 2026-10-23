@@ -2,6 +2,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
+import type { Offer } from "./update";
+
 export interface Site {
   /** Cleaned ASCII domain, used for commands and favicons. */
   domain: string;
@@ -102,10 +104,20 @@ export const api = {
   appFromPath: (path: string) => invoke<InstalledApp>("app_from_path", { path }),
   pickAppInFinder: () => invoke<InstalledApp | null>("pick_app_in_finder"),
   installHelper: () => invoke<void>("install_helper"),
+  checkUpdate: () => invoke<Offer | null>("check_update"),
+  /** Resolves only on failure: on success the app relaunches. */
+  installUpdate: () => invoke<void>("install_update"),
 };
 
 export function onStatus(handler: (event: StatusEvent) => void): Promise<UnlistenFn> {
   return listen<StatusEvent>("status", (event) => handler(event.payload));
+}
+
+/** Download progress of an update; `percent` is null without a known size. */
+export function onUpdateProgress(handler: (percent: number | null) => void): Promise<UnlistenFn> {
+  return listen<{ percent: number | null }>("update_progress", (event) =>
+    handler(event.payload.percent),
+  );
 }
 
 export function isAppError(value: unknown): value is AppError {
