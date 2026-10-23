@@ -1,6 +1,6 @@
 # 0006: In-app update
 
-Status: approved
+Status: done
 Issue: (none)
 
 ## Problem
@@ -24,7 +24,7 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 - [x] Failures show one sentence in the snackbar and bring the button back.
 - [x] Dev mode never contacts the update endpoint.
 - [x] A running block's remaining time and the potion count are unchanged across an app update (manual QA on a real Mac).
-- [ ] Every release publishes `OrcBlock.app.tar.gz`, its `.sig` and `latest.json`, signed in the `publish` job, never in `build`. (The workflow does this, and its minisign commands were run locally; it is ticked once the 0.3.1 release has run them on GitHub.)
+- [x] Every release publishes `OrcBlock.app.tar.gz`, its `.sig` and `latest.json`, signed in the `publish` job, never in `build`. (0.3.1: `latest.json` from `releases/latest/download` names version 0.3.1, and its signature verifies the published tarball against the app's public key with signed version 0.3.1.)
 - [x] Button states checked in light and dark.
 
 ## Design
