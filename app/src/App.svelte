@@ -35,7 +35,7 @@
   });
 </script>
 
-<TopBar version={__APP_VERSION__} />
+<TopBar version={__APP_VERSION__} onerror={(text) => (message = text)} />
 
 <main>
   {#if view.kind === "ready"}
