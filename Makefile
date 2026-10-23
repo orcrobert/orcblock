@@ -78,6 +78,7 @@ bundle-universal: sidecar-universal
 	cmp app/src-tauri/binaries/orcblockd-$(UNIVERSAL) $(RELEASE_APP)/Contents/MacOS/orcblockd
 	grep -aq "$$(shasum -a 256 $(RELEASE_APP)/Contents/MacOS/orcblockd | cut -c1-64)" $(RELEASE_APP)/Contents/MacOS/orcblock-app || \
 		{ echo "the app does not pin the helper it bundles" >&2; exit 1; }
+	COPYFILE_DISABLE=1 tar --no-mac-metadata -czf $(RELEASE_DIR)/macos/OrcBlock.app.tar.gz -C $(RELEASE_DIR)/macos OrcBlock.app
 	rm -rf $(RELEASE_DIR)/dmg && mkdir -p $(RELEASE_DIR)/dmg/stage
 	cp -R $(RELEASE_APP) $(RELEASE_DIR)/dmg/stage/
 	ln -s /Applications $(RELEASE_DIR)/dmg/stage/Applications
