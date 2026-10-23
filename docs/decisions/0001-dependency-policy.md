@@ -29,6 +29,7 @@ OrcBlock installs a daemon that runs as root on people's Macs. Every dependency 
 - `clap`: command-line parsing for the daemon and the CLI.
 - `tauri`: the desktop app framework (ADR 0004).
 - `tauri-build`: Tauri's build script.
+- `tauri-plugin-updater`: in-app updates with signed bundles (ADR 0007).
 - `ureq`: small blocking HTTPS client for favicons.
 - `base64`: favicon data URLs.
 - `sha2`: stable favicon cache file names.
