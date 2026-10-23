@@ -4,6 +4,7 @@
 mod apps;
 mod favicon;
 mod shield;
+mod update;
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -16,10 +17,12 @@ use orcblock_ipc::codec::CodecError;
 use orcblock_ipc::{Client, ClientError, DEFAULT_SOCKET, ErrorKind, Status};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_updater::UpdaterExt;
 
 use crate::apps::{Apps, InstalledApp, SystemRunner};
 use crate::favicon::Favicons;
 use crate::shield::ShieldTracker;
+use crate::update::{Download, Offer, Pending};
 
 /// The label of the orc shield window; the UI picks its route by it.
 const SHIELD: &str = "shield";
@@ -93,6 +96,7 @@ struct AppState {
     client: Client,
     favicons: Favicons,
     apps: Apps<SystemRunner>,
+    update: Pending,
     dev: bool,
 }
 
@@ -309,6 +313,55 @@ async fn install_helper(state: Shared<'_>) -> Result<(), AppError> {
     })
 }
 
+fn update_error(err: impl std::fmt::Display) -> AppError {
+    AppError {
+        kind: "update".into(),
+        message: format!("Could not update OrcBlock: {err}"),
+    }
+}
+
+/// Asks the release endpoint for a newer version. Dev mode never asks.
+#[tauri::command]
+async fn check_update(app: AppHandle, state: Shared<'_>) -> Result<Option<Offer>, AppError> {
+    if state.dev {
+        return Ok(None);
+    }
+    let update = app
+        .updater()
+        .map_err(update_error)?
+        .check()
+        .await
+        .map_err(update_error)?;
+    Ok(state.update.set(update))
+}
+
+/// Downloads the update the last check found, verifies its signature,
+/// replaces the app bundle and relaunches. Progress goes out on the
+/// `update_progress` event.
+#[tauri::command]
+async fn install_update(app: AppHandle, state: Shared<'_>) -> Result<(), AppError> {
+    let update = state
+        .update
+        .take()
+        .ok_or_else(|| update_error("no update is waiting, or one is installing already"))?;
+    let mut download = Download::default();
+    let installed = update
+        .download_and_install(
+            |len, total| {
+                let _ = app.emit("update_progress", download.add(len, total));
+            },
+            || {},
+        )
+        .await;
+    match installed {
+        Ok(()) => app.restart(),
+        Err(err) => {
+            state.update.restore(update);
+            Err(update_error(err))
+        }
+    }
+}
+
 /// SHA-256 of the daemon bundled with this build, or empty without one.
 const HELPER_SHA256: &str = env!("ORCBLOCK_HELPER_SHA256");
 
@@ -414,6 +467,7 @@ pub fn run() {
     let woken = woken(std::env::args());
 
     let built = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             let cache_dir = app.path().app_cache_dir()?;
             let home = app.path().home_dir().ok();
@@ -425,6 +479,7 @@ pub fn run() {
                     apps::app_folders(home.as_deref()),
                     cache_dir.join("app-icons"),
                 ),
+                update: Pending::default(),
                 dev,
             }));
             if !woken {
@@ -444,6 +499,8 @@ pub fn run() {
             drink_potion,
             favicon,
             install_helper,
+            check_update,
+            install_update,
             add_app,
             remove_app,
             installed_apps,
