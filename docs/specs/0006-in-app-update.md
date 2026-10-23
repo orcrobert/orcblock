@@ -24,7 +24,7 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 - [x] Failures show one sentence in the snackbar and bring the button back.
 - [x] Dev mode never contacts the update endpoint.
 - [x] A running block's remaining time and the potion count are unchanged across an app update (manual QA on a real Mac).
-- [x] Every release publishes `OrcBlock.app.tar.gz`, its `.sig` and `latest.json`, signed in the `publish` job, never in `build`.
+- [ ] Every release publishes `OrcBlock.app.tar.gz`, its `.sig` and `latest.json`, signed in the `publish` job, never in `build`. (The workflow does this, and its minisign commands were run locally; it is ticked once the 0.3.1 release has run them on GitHub.)
 - [x] Button states checked in light and dark.
 
 ## Design
@@ -70,7 +70,7 @@ Needs the security-reviewer on slices 1 and 3.
 Run on 2026-10-23 with two local builds (0.3.1 and 0.3.2) signed by a throwaway key, served from 127.0.0.1 with `dangerousInsecureTransportProtocol`, and a 0.3.1 build patched (not committed) to install as soon as it finds the update, since the button cannot be clicked from a script:
 - A signature made for another file: the app downloaded the tarball, logged "The signature verification failed", kept running, and the bundle stayed 0.3.1 with the same binary.
 - The valid signature: the app downloaded, swapped the bundle to 0.3.2, exited and relaunched from the same path; `codesign --verify --strict` passed and no quarantine attribute was set. The relaunched app checked again and found nothing newer.
-- A 30 min dry-run block on the dev daemon lost 66 s over the 65 s around the update, potions unchanged at 4 of 5. The app talked to the installed helper meanwhile (dev mode skips the check), so this shows the update leaves the daemon alone, not a block's own client.
+- A 30 min dry-run block on the dev daemon, with the app as its client (`ORCBLOCK_SOCKET` set, in a build patched to check in dev mode too): over the 34 s around the update the block went from 26:28 to 25:54 left and potions stayed at 4 of 5. The relaunched 0.3.2 app kept the same socket and, being unpatched, did not check again in dev mode.
 - Dev mode (`ORCBLOCK_SOCKET` set): no request reached the server.
 
 ## Out of scope
