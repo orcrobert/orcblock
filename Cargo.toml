@@ -38,6 +38,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tauri = { version = "2.12", features = [] }
 tauri-build = { version = "2.7", features = [] }
+tauri-plugin-updater = { version = "2.14", default-features = false, features = ["rustls-tls"] }
 ureq = "3.4"
 
 [workspace.lints.rust]

@@ -40,5 +40,11 @@
     "macOS": {
       "minimumSystemVersion": "13.0"
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0NUQ4OTZFOURCOTJFQjEKUldTeExybWRib2xkRk5paGhaYkVMUllUOC9MR0tMS1JIb2JMMTV0a2R3ZzBDUjNmQTRkcmNvR20K",
+      "endpoints": ["https://github.com/orcrobert/orcblock/releases/latest/download/latest.json"]
+    }
   }
 }

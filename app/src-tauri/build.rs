@@ -16,6 +16,8 @@ const COMMANDS: &[&str] = &[
     "drink_potion",
     "favicon",
     "install_helper",
+    "check_update",
+    "install_update",
     "add_app",
     "remove_app",
     "installed_apps",
