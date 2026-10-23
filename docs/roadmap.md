@@ -28,7 +28,7 @@ What exists and what is next, in order. `/status` reads this file. Big items get
 ## 4. Distribution
 - [x] GitHub releases: tagged, universal, ad hoc signed dmg with checksums and provenance (docs/releasing.md)
 - [ ] Homebrew cask (`brew install --cask orcblock`)
-- [ ] Auto-update
+- [x] Auto-update (spec 0006: the app offers a newer release in the top bar and installs it in place)
 
 ## 5. Later
 - [x] Block apps as well as websites: the daemon closes blocked apps during a block and the orc shield says why (spec 0004, ADR 0006)
