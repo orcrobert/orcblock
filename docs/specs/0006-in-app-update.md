@@ -9,9 +9,9 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 ## Behaviour
 1. Once, when the app starts, it asks GitHub whether a newer published release exists. It sends nothing but the request for one small JSON file. Dev mode (`make dev`) never checks.
 2. No newer version, no network, or GitHub unreachable: the top bar looks as it does today (`REV 0.3.0`). Check failures are logged, never shown.
-3. A newer version exists: next to `REV 0.3.0` the top bar shows a button `UPDATE → 0.4.0`. Hovering it shows the release's version and date.
+3. A newer version exists: next to `REV 0.3.0` the top bar shows a button `UPDATE → 0.4.0`. Hovering it, or VoiceOver, gives `Update to 0.4.0, released <date>`.
 4. Click: the button turns into `DOWNLOADING 42%`, then `INSTALLING`. The app downloads the new bundle, checks its signature against the public key built into the app, replaces `OrcBlock.app` in place and relaunches itself. No dmg, no drag, no Gatekeeper prompt (the app downloads the file itself, so it is never quarantined).
-5. Any failure (network drops, bad signature, the app folder is not writable): the button comes back as `UPDATE → 0.4.0` and the snackbar says what went wrong in one sentence. The old app keeps working; nothing is half replaced.
+5. If the app sits where the user cannot write (a root-owned `/Applications/OrcBlock.app`), the plugin asks for the administrator password once to swap it. Any failure (network drops, bad signature, a cancelled password prompt): the button comes back as `UPDATE → 0.4.0` and the snackbar says what went wrong in one sentence. The old app keeps working; nothing is half replaced.
 6. The update does not touch the helper. If the new app speaks a newer protocol than the running helper, the existing "update the helper" state takes over (administrator prompt through `install_helper`). A release that keeps the protocol leaves the old helper running, so most updates need no password.
 7. During a block the update works the same: the app is not what holds the block, the helper is.
 8. Helper not installed: the app still offers its own update and keeps showing the existing install prompt.
@@ -32,7 +32,7 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 
 **App (`app/src-tauri`).** New module `update`:
 - `check_update` command: returns `Option<{ version, date }>`; `None` in dev mode. The UI calls it once on start.
-- `install_update` command: downloads and installs, emitting `update_progress` events (`{ downloaded, total }`), then restarts. Only one install at a time (a guard in `AppState`).
+- `install_update` command: downloads and installs, emitting `update_progress` events (`{ type: "downloading", percent }` once per whole percent, then `{ type: "installing" }`), unpacking and swapping in `spawn_blocking`, then restarts. Only one install at a time: `Pending` moves to `Installing` and ignores checks until the install fails. Checks time out after 30 s, downloads after 10 min.
 - `tauri.conf.json`: `plugins.updater.pubkey` (the public key, committed) and `endpoints: ["https://github.com/orcrobert/orcblock/releases/latest/download/latest.json"]`. `bundle.createUpdaterArtifacts` stays off: see Release.
 - Capabilities: `allow-check-update`, `allow-install-update`. The CSP is unchanged; all network traffic is on the Rust side.
 
@@ -41,7 +41,7 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 **Release (`release.yml`, `Makefile`, `docs/releasing.md`).**
 - `make bundle-universal` also writes `OrcBlock.app.tar.gz` from the app *after* `codesign`, so the updated app keeps its ad hoc signature and pinned helper. (Tauri's own updater artifacts are made before our `codesign`, so they would be wrong.)
 - The `build` job uploads the tarball with the dmgs and adds it to `SHA256SUMS`. It never sees the signing key, because it runs npm install scripts and build scripts.
-- The `publish` job (no repository code, `release` environment) installs `minisign` from apt, signs the tarball with the key from the `TAURI_SIGNING_PRIVATE_KEY` environment secret, writes `OrcBlock.app.tar.gz.sig` in Tauri's format (base64 of the minisign signature file, with `version:x.y.z` in the trusted comment, which the app requires through `requireSignedVersion` so an old signed bundle cannot be served as a new version) and `latest.json` (`version`, `pub_date`, `notes`, and the url and signature for `darwin-aarch64` and `darwin-x86_64`, both pointing at the universal tarball), attests the tarball and uploads all three.
+- The `publish` job (no repository code, `release` environment) installs `minisign` from apt, signs the tarball with the key from the `TAURI_SIGNING_PRIVATE_KEY` environment secret, writes `OrcBlock.app.tar.gz.sig` in Tauri's format (base64 of the minisign signature file, with `version:x.y.z` in the trusted comment, which the app requires through `requireSignedVersion` so an old signed bundle cannot be served as a new version) and `latest.json` (`version`, `pub_date`, and the url and signature for `darwin-aarch64` and `darwin-x86_64`, both pointing at the universal tarball), attests the tarball and uploads all three.
 - One-time maintainer step, documented: `npm --prefix app run tauri signer generate`, public key into `tauri.conf.json`, private key and password into the `release` environment's secrets.
 
 **Risks.** A leaked signing key lets someone ship an update that the app installs, and that update's helper then asks for the admin password. Mitigations: key only in the `release` environment, used only by the job that runs no repository code; the helper still needs the user's password and is checked against the SHA-256 pinned in the (signed) app. Losing the key means users must reinstall from the dmg once, after a new key ships.
@@ -62,7 +62,7 @@ Needs the security-reviewer on slices 1 and 3.
 3. Release: tarball in `make bundle-universal`, signing and `latest.json` in the `publish` job, `docs/releasing.md`, roadmap tick, version 0.3.1. (~150 lines)
 
 ## Test plan
-- Rust unit tests: manifest-to-`{version, date}` mapping; dev mode returns `None` without touching the network (no network in tests: the updater is behind a small trait, faked).
+- Rust unit tests: progress reporting, one install at a time, error sentences. The plugin's own network calls are not faked; dev mode skipping the check is a guard in `check_update`, checked by hand with a build pointed at a local server.
 - Vitest: button state machine (hidden → available → downloading → installing; error → available).
 - CI: `make check`, `cargo deny` with the new crates.
 - Manual on a real Mac: release a `0.3.1` from a test fork or draft, install `0.3.0` from the dmg, update in-app; app relaunches as 0.3.1 without Gatekeeper; tamper with the `.sig` and see the refusal; repeat with a block running and check remaining time and potions before and after.
