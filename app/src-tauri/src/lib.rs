@@ -22,7 +22,7 @@ use tauri_plugin_updater::UpdaterExt;
 use crate::apps::{Apps, InstalledApp, SystemRunner};
 use crate::favicon::Favicons;
 use crate::shield::ShieldTracker;
-use crate::update::{Download, Offer, Pending};
+use crate::update::{Download, Offer, Pending, Progress};
 
 /// The label of the orc shield window; the UI picks its route by it.
 const SHIELD: &str = "shield";
@@ -52,8 +52,8 @@ fn show_main(app: &AppHandle) {
 #[derive(Debug, Clone, Serialize)]
 struct AppError {
     /// `unavailable` when the helper is not running, `helper_outdated` when
-    /// it speaks an older protocol, otherwise the daemon's error kind in
-    /// snake case.
+    /// it speaks an older protocol, `update` when updating the app failed,
+    /// otherwise the daemon's error kind in snake case.
     kind: String,
     message: String,
 }
@@ -96,7 +96,7 @@ struct AppState {
     client: Client,
     favicons: Favicons,
     apps: Apps<SystemRunner>,
-    update: Pending,
+    update: Pending<tauri_plugin_updater::Update>,
     dev: bool,
 }
 
@@ -313,10 +313,17 @@ async fn install_helper(state: Shared<'_>) -> Result<(), AppError> {
     })
 }
 
-fn update_error(err: impl std::fmt::Display) -> AppError {
+/// How long a check may take; a stalled one would otherwise hang until the
+/// app quits.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long the whole download may take.
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
+
+fn update_error(err: &tauri_plugin_updater::Error) -> AppError {
     AppError {
         kind: "update".into(),
-        message: format!("Could not update OrcBlock: {err}"),
+        message: update::explain(err),
     }
 }
 
@@ -326,13 +333,17 @@ async fn check_update(app: AppHandle, state: Shared<'_>) -> Result<Option<Offer>
     if state.dev {
         return Ok(None);
     }
-    let update = app
-        .updater()
-        .map_err(update_error)?
-        .check()
-        .await
-        .map_err(update_error)?;
-    Ok(state.update.set(update))
+    let checked = match app.updater_builder().timeout(CHECK_TIMEOUT).build() {
+        Ok(updater) => updater.check().await,
+        Err(err) => Err(err),
+    };
+    let update = checked.map_err(|err| {
+        tracing::warn!(%err, "update check failed");
+        update_error(&err)
+    })?;
+    let offer = update.as_ref().map(Offer::of);
+    state.update.set(update);
+    Ok(offer)
 }
 
 /// Downloads the update the last check found, verifies its signature,
@@ -340,26 +351,43 @@ async fn check_update(app: AppHandle, state: Shared<'_>) -> Result<Option<Offer>
 /// `update_progress` event.
 #[tauri::command]
 async fn install_update(app: AppHandle, state: Shared<'_>) -> Result<(), AppError> {
-    let update = state
-        .update
-        .take()
-        .ok_or_else(|| update_error("no update is waiting, or one is installing already"))?;
-    let mut download = Download::default();
-    let installed = update
-        .download_and_install(
-            |len, total| {
-                let _ = app.emit("update_progress", download.add(len, total));
-            },
-            || {},
-        )
-        .await;
+    let mut update = state.update.start().ok_or_else(|| AppError {
+        kind: "update".into(),
+        message: "No update is waiting, or one is installing already.".into(),
+    })?;
+    update.timeout = Some(DOWNLOAD_TIMEOUT);
+    let installed = download_and_install(&app, update.clone()).await;
     match installed {
         Ok(()) => app.restart(),
         Err(err) => {
-            state.update.restore(update);
-            Err(update_error(err))
+            tracing::warn!(%err, "update failed");
+            state.update.fail(update);
+            Err(update_error(&err))
         }
     }
+}
+
+async fn download_and_install(
+    app: &AppHandle,
+    update: tauri_plugin_updater::Update,
+) -> Result<(), tauri_plugin_updater::Error> {
+    // A closed window only loses the progress display, not the install.
+    let emit = |progress: Progress| {
+        if let Err(err) = app.emit("update_progress", progress) {
+            tracing::debug!(%err, "could not report update progress");
+        }
+    };
+    let mut download = Download::default();
+    let bytes = update
+        .download(
+            |len, total| download.add(len, total).into_iter().for_each(emit),
+            || emit(Progress::Installing),
+        )
+        .await?;
+    // Unpacking, the bundle swap and a possible password prompt block.
+    tauri::async_runtime::spawn_blocking(move || update.install(bytes))
+        .await
+        .map_err(|err| tauri_plugin_updater::Error::Io(std::io::Error::other(err)))?
 }
 
 /// SHA-256 of the daemon bundled with this build, or empty without one.
