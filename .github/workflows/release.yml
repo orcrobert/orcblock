@@ -74,7 +74,11 @@ jobs:
           mkdir dist
           cp target/universal-apple-darwin/release/bundle/dmg/OrcBlock.dmg dist/OrcBlock.dmg
           cp dist/OrcBlock.dmg "dist/OrcBlock_${TAG#v}_macos_universal.dmg"
-          (cd dist && shasum -a 256 -- *.dmg > SHA256SUMS)
+          cp target/universal-apple-darwin/release/bundle/macos/OrcBlock.app.tar.gz dist/
+          (cd dist && shasum -a 256 -- *.dmg OrcBlock.app.tar.gz > SHA256SUMS)
+          # Only for the publish job to check its signature against what
+          # the app trusts; never published.
+          jq -r .plugins.updater.pubkey app/src-tauri/tauri.conf.json | base64 -d > dist/updater.pub
           cp .github/release-notes.md dist/release-notes.md
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -103,9 +107,37 @@ jobs:
           path: dist
       - name: Checksums still match
         run: cd dist && sha256sum --check SHA256SUMS
+      # The key lives only in the release environment and reaches no job
+      # that runs repository code. The trusted comment carries the version,
+      # which the app requires (requireSignedVersion), so a tampered
+      # latest.json cannot pair a new version with an older bundle.
+      - name: Sign the update
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          [ -n "$KEY" ] || { echo "TAURI_SIGNING_PRIVATE_KEY is not set in the release environment" >&2; exit 1; }
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq minisign
+          version=${TAG#v}
+          key="$RUNNER_TEMP/updater.key"
+          (umask 077 && printf '%s' "$KEY" | base64 -d > "$key")
+          comment=$(printf 'timestamp:%s\tfile:OrcBlock.app.tar.gz\tversion:%s' "$(date +%s)" "$version")
+          printf '%s\n' "$PASSWORD" | minisign -S -s "$key" -m dist/OrcBlock.app.tar.gz -x "$RUNNER_TEMP/update.minisig" -t "$comment"
+          rm -f "$key"
+          minisign -V -p dist/updater.pub -m dist/OrcBlock.app.tar.gz -x "$RUNNER_TEMP/update.minisig"
+          base64 -w0 "$RUNNER_TEMP/update.minisig" > dist/OrcBlock.app.tar.gz.sig
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/OrcBlock.app.tar.gz"
+          jq -n --arg version "$version" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg url "$url" \
+            --rawfile signature dist/OrcBlock.app.tar.gz.sig \
+            '{version: $version, pub_date: $date, platforms: {
+              "darwin-aarch64": {url: $url, signature: $signature},
+              "darwin-x86_64": {url: $url, signature: $signature}}}' > dist/latest.json
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: dist/*.dmg
+          subject-path: |
+            dist/*.dmg
+            dist/OrcBlock.app.tar.gz
       # gh release create ignores --target when the tag exists, so a tag
       # pushed since the version check would get this build attached.
       - name: Tag still free
@@ -128,5 +160,6 @@ jobs:
           channel=--latest
           case "$TAG" in *-*) channel=--prerelease ;; esac
           gh release create "$TAG" dist/OrcBlock.dmg "dist/OrcBlock_${TAG#v}_macos_universal.dmg" dist/SHA256SUMS \
+            dist/OrcBlock.app.tar.gz dist/OrcBlock.app.tar.gz.sig dist/latest.json \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" "$channel" --title "OrcBlock $TAG" \
             --notes-file dist/release-notes.md --generate-notes
