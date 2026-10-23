@@ -10,7 +10,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "agenthooks"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2427,7 +2427,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "orcblock-app"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.23.1",
  "orcblock-core",
@@ -2447,7 +2447,7 @@ dependencies = [
 
 [[package]]
 name = "orcblock-cli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -2458,7 +2458,7 @@ dependencies = [
 
 [[package]]
 name = "orcblock-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "idna",
  "jiff",
@@ -2470,7 +2470,7 @@ dependencies = [
 
 [[package]]
 name = "orcblock-ipc"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "jiff",
  "orcblock-core",
@@ -2483,7 +2483,7 @@ dependencies = [
 
 [[package]]
 name = "orcblockd"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "clap",
