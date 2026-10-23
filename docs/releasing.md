@@ -41,11 +41,13 @@ The helper's SHA-256 is pinned into the app at build time, so the bundle is sign
 
 ## Update signing
 
+With in-app updates, a merged version bump is signed and offered to every installed app. Give the `release` environment a required reviewer, so a person approves each signing; see Repository settings.
+
 The app installs an update only if the tarball is signed by the key whose public half is `plugins.updater.pubkey` in `app/src-tauri/tauri.conf.json`, and only if the signed version matches `latest.json` (`requireSignedVersion`). `make bundle-universal` makes the tarball after `codesign`, so updated apps keep the ad hoc signature and the pinned helper.
 
-- The private key and its password are secrets of the `release` environment: `TAURI_SIGNING_PRIVATE_KEY` (the contents of the `.key` file that `tauri signer generate` writes) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Only the `publish` job reads them; it runs no repository code and signs with Ubuntu's `minisign`, then checks the signature against the public key from the build before publishing. The `build` job never sees them, because it runs npm install scripts and build scripts.
+- The private key and its password are secrets of the `release` environment: `TAURI_SIGNING_PRIVATE_KEY` (the contents of the `.key` file that `tauri signer generate` writes) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Only the `publish` job reads them, in a step that sees nothing else from the build but the tarball. It runs no repository code and signs with Ubuntu's `minisign`; a later step without the secrets checks the signature against the public key in the released commit's `tauri.conf.json`, read through the GitHub API, so a key that does not match the app fails the release instead of every update. The `build` job never sees them, because it runs npm install scripts and build scripts.
 - Keep an offline copy of the key and password (a password manager). GitHub never shows a secret again.
-- If the key is lost or leaks: generate a new pair with `npm --prefix app run tauri signer generate -- -w <path>`, put the public key in `tauri.conf.json`, replace both secrets and release. Installed apps still trust the old key, so they cannot update to that release; people reinstall from the dmg once. A leaked key also means rotating at once: anyone holding it can publish an update the app accepts, though its helper still needs the administrator password.
+- If the key is lost or leaks: generate a new pair with `npm --prefix app run tauri signer generate -- -w <path>`, put the public key in `tauri.conf.json`, replace both secrets and release. Installed apps still trust the old key, so they cannot update to that release; people reinstall from the dmg once. A leaked key means rotating at once: anyone holding it can publish an update that every installed app accepts with one click, which runs as each user who updates, and as root once they type their password into a prompt that update controls.
 
 ## Other platforms
 

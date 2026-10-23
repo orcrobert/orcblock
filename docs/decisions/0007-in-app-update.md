@@ -26,5 +26,5 @@ It adds 22 crates to `Cargo.lock`, among them `reqwest`'s rustls stack (`hyper-r
 ## Consequences
 
 - Two HTTP stacks in the app: `ureq` for favicons and `reqwest` for updates. Worth revisiting if the plugin ever allows another client.
-- Losing the signing key means every installed app refuses new updates; people then reinstall from the dmg once, after a release with a new public key. Leaking it lets someone publish an update the app accepts, so it lives only in the `release` environment.
-- An update can only move forward (the plugin compares versions), and the helper inside still needs the administrator password and the pinned SHA-256 before it runs as root.
+- Losing the signing key means every installed app refuses new updates; people then reinstall from the dmg once, after a release with a new public key. Leaking it lets someone publish an update every installed app accepts: code running as each user who updates, and as root once they type their password into a prompt that update controls. So it lives only in the `release` environment, read by one step of the job that runs no repository code.
+- An update can only move forward (the plugin compares versions), and the signed version must match the manifest (`requireSignedVersion`), so an old signed bundle cannot be served as a new one.
