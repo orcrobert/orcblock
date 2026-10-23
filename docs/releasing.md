@@ -41,7 +41,7 @@ The helper's SHA-256 is pinned into the app at build time, so the bundle is sign
 
 ## Update signing
 
-With in-app updates, a merged version bump is signed and offered to every installed app. Give the `release` environment a required reviewer, so a person approves each signing; see Repository settings.
+With in-app updates, a merged version bump is signed and offered to every installed app. The `release` environment therefore requires a reviewer (orcrobert, since 2026-10-23): the publish job, and with it the signing, waits until a person approves it on the run's page. Keep it that way; see Repository settings.
 
 The app installs an update only if the tarball is signed by the key whose public half is `plugins.updater.pubkey` in `app/src-tauri/tauri.conf.json`, and only if the signed version matches `latest.json` (`requireSignedVersion`). `make bundle-universal` makes the tarball after `codesign`, so updated apps keep the ad hoc signature and the pinned helper.
 
