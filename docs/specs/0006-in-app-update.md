@@ -18,13 +18,13 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 
 ## Acceptance criteria
 - [x] With a newer published release, the top bar shows an update button naming the new version; with none, it shows only `REV x.y.z`.
-- [ ] A pre-release (`1.0.0-beta.1`) is never offered, since the update manifest follows `releases/latest`.
+- [x] A pre-release (`1.0.0-beta.1`) is never offered, since the update manifest follows `releases/latest`.
 - [ ] Clicking it downloads, verifies the minisign signature, replaces the bundle and relaunches into the new version.
 - [ ] A download whose signature does not match the built-in public key is refused, and the installed app is unchanged.
 - [x] Failures show one sentence in the snackbar and bring the button back.
 - [x] Dev mode never contacts the update endpoint.
 - [ ] A running block's remaining time and the potion count are unchanged across an app update (manual QA on a real Mac).
-- [ ] Every release publishes `OrcBlock.app.tar.gz`, its `.sig` and `latest.json`, signed in the `publish` job, never in `build`.
+- [x] Every release publishes `OrcBlock.app.tar.gz`, its `.sig` and `latest.json`, signed in the `publish` job, never in `build`.
 - [x] Button states checked in light and dark.
 
 ## Design
@@ -41,7 +41,7 @@ Today the only way to get a new OrcBlock is to download the dmg again, quit the 
 **Release (`release.yml`, `Makefile`, `docs/releasing.md`).**
 - `make bundle-universal` also writes `OrcBlock.app.tar.gz` from the app *after* `codesign`, so the updated app keeps its ad hoc signature and pinned helper. (Tauri's own updater artifacts are made before our `codesign`, so they would be wrong.)
 - The `build` job uploads the tarball with the dmgs and adds it to `SHA256SUMS`. It never sees the signing key, because it runs npm install scripts and build scripts.
-- The `publish` job (no repository code, `release` environment) installs `minisign` from apt, signs the tarball with the key from the `TAURI_SIGNING_PRIVATE_KEY` environment secret, writes `OrcBlock.app.tar.gz.sig` in Tauri's format (base64 of the minisign signature file) and `latest.json` (`version`, `pub_date`, `notes`, and the url and signature for `darwin-aarch64` and `darwin-x86_64`, both pointing at the universal tarball), attests the tarball and uploads all three.
+- The `publish` job (no repository code, `release` environment) installs `minisign` from apt, signs the tarball with the key from the `TAURI_SIGNING_PRIVATE_KEY` environment secret, writes `OrcBlock.app.tar.gz.sig` in Tauri's format (base64 of the minisign signature file, with `version:x.y.z` in the trusted comment, which the app requires through `requireSignedVersion` so an old signed bundle cannot be served as a new version) and `latest.json` (`version`, `pub_date`, `notes`, and the url and signature for `darwin-aarch64` and `darwin-x86_64`, both pointing at the universal tarball), attests the tarball and uploads all three.
 - One-time maintainer step, documented: `npm --prefix app run tauri signer generate`, public key into `tauri.conf.json`, private key and password into the `release` environment's secrets.
 
 **Risks.** A leaked signing key lets someone ship an update that the app installs, and that update's helper then asks for the admin password. Mitigations: key only in the `release` environment, used only by the job that runs no repository code; the helper still needs the user's password and is checked against the SHA-256 pinned in the (signed) app. Losing the key means users must reinstall from the dmg once, after a new key ships.
